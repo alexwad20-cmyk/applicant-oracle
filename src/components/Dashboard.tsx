@@ -2,54 +2,60 @@ import { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Users, Clock, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Users, Clock, CheckCircle, XCircle, Briefcase } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Applicant, InterviewStage } from "@/types/applicant";
-import { useApplicants } from "@/hooks/useApplicants";
+import { CandidateStage } from "@/types/applicant";
+import { useJobs } from "@/hooks/useJobs";
 
 export const Dashboard = () => {
-  const { applicants } = useApplicants();
+  const { jobs, candidates } = useJobs();
 
   const stats = useMemo(() => {
-    const total = applicants.length;
-    const inProgress = applicants.filter(a => 
-      [InterviewStage.SCREENING, InterviewStage.FIRST_INTERVIEW, 
-       InterviewStage.SECOND_INTERVIEW, InterviewStage.FINAL_INTERVIEW].includes(a.interviewStage)
-    ).length;
-    const offered = applicants.filter(a => a.interviewStage === InterviewStage.OFFER_MADE).length;
-    const rejected = applicants.filter(a => a.interviewStage === InterviewStage.REJECTED).length;
+    const total = candidates.length;
+    const newApplicants = candidates.filter(c => c.stage === CandidateStage.NEW_APPLICANT).length;
+    const sentForReview = candidates.filter(c => c.stage === CandidateStage.SENT_FOR_REVIEW).length;
+    const progressed = candidates.filter(c => c.stage === CandidateStage.PROGRESSED).length;
+    const rejected = candidates.filter(c => c.stage === CandidateStage.REJECTED).length;
 
-    return { total, inProgress, offered, rejected };
-  }, [applicants]);
+    return { total, newApplicants, sentForReview, progressed, rejected };
+  }, [candidates]);
 
-  const recentApplicants = useMemo(() => 
-    applicants
+  const recentCandidates = useMemo(() => 
+    candidates
       .sort((a, b) => new Date(b.dateOfApplication).getTime() - new Date(a.dateOfApplication).getTime())
       .slice(0, 5)
-  , [applicants]);
+  , [candidates]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted p-6">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold text-foreground">Applicant Tracker</h1>
-            <p className="text-muted-foreground mt-2">Manage and track job applications</p>
-          </div>
-          <Link to="/add-applicant">
+        <div>
+          <h1 className="text-4xl font-bold text-foreground">Candidate Pipeline</h1>
+          <p className="text-muted-foreground mt-2">Track candidates through the hiring process</p>
+        </div>
+        <div className="flex gap-2">
+          <Link to="/pipeline">
             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Applicant
+              <Briefcase className="h-4 w-4 mr-2" />
+              View Pipeline
             </Button>
           </Link>
+          <Link to="/add-candidate">
+            <Button variant="outline">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Candidate
+            </Button>
+          </Link>
+        </div>
         </div>
 
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
           <Card className="shadow-soft border-0">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Applicants</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Candidates</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -59,82 +65,90 @@ export const Dashboard = () => {
 
           <Card className="shadow-soft border-0">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+              <CardTitle className="text-sm font-medium">New Applicants</CardTitle>
               <Clock className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-warning">{stats.inProgress}</div>
+              <div className="text-2xl font-bold text-info">{stats.newApplicants}</div>
             </CardContent>
           </Card>
 
           <Card className="shadow-soft border-0">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Offers Made</CardTitle>
+              <CardTitle className="text-sm font-medium">Sent for Review</CardTitle>
               <CheckCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-success">{stats.offered}</div>
+              <div className="text-2xl font-bold text-warning">{stats.sentForReview}</div>
             </CardContent>
           </Card>
 
           <Card className="shadow-soft border-0">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Rejected</CardTitle>
+              <CardTitle className="text-sm font-medium">Progressed</CardTitle>
               <XCircle className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-destructive">{stats.rejected}</div>
+              <div className="text-2xl font-bold text-success">{stats.progressed}</div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Recent Applicants */}
+        {/* Recent Candidates & Jobs */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <Card className="shadow-soft border-0">
             <CardHeader>
               <CardTitle className="flex items-center justify-between">
-                Recent Applications
-                <Link to="/applicants">
-                  <Button variant="ghost" size="sm">View All</Button>
+                Recent Candidates
+                <Link to="/pipeline">
+                  <Button variant="ghost" size="sm">View Pipeline</Button>
                 </Link>
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {recentApplicants.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">No applicants yet</p>
+              {recentCandidates.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">No candidates yet</p>
               ) : (
-                recentApplicants.map((applicant) => (
-                  <div key={applicant.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                    <div>
-                      <p className="font-medium">{applicant.name}</p>
-                      <p className="text-sm text-muted-foreground">{applicant.roleAppliedFor}</p>
+                recentCandidates.map((candidate) => {
+                  const job = jobs.find(j => j.id === candidate.jobId);
+                  return (
+                    <div key={candidate.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                      <div>
+                        <p className="font-medium">{candidate.name}</p>
+                        <p className="text-sm text-muted-foreground">{job?.title || 'Unknown Position'}</p>
+                      </div>
+                      <Badge variant="secondary" className="bg-info text-info-foreground">
+                        {new Date(candidate.dateOfApplication).toLocaleDateString()}
+                      </Badge>
                     </div>
-                    <Badge variant="secondary" className="bg-info text-info-foreground">
-                      {new Date(applicant.dateOfApplication).toLocaleDateString()}
-                    </Badge>
-                  </div>
-                ))
+                  );
+                })
               )}
             </CardContent>
           </Card>
 
           <Card className="shadow-soft border-0">
             <CardHeader>
-              <CardTitle>Quick Actions</CardTitle>
+              <CardTitle>Open Positions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Link to="/add-applicant">
-                <Button className="w-full justify-start bg-primary hover:bg-primary/90 text-primary-foreground">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add New Applicant
-                </Button>
-              </Link>
-              <Link to="/applicants">
-                <Button variant="outline" className="w-full justify-start">
-                  <Users className="h-4 w-4 mr-2" />
-                  View All Applicants
-                </Button>
-              </Link>
+              {jobs.filter(job => job.status === 'open').map((job) => {
+                const jobCandidates = candidates.filter(c => c.jobId === job.id);
+                return (
+                  <div key={job.id} className="p-3 rounded-lg bg-muted/50">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <p className="font-medium">{job.title}</p>
+                        <p className="text-sm text-muted-foreground">{job.department}</p>
+                        <p className="text-xs text-muted-foreground">HM: {job.hiringManager}</p>
+                      </div>
+                      <Badge variant="outline" className="bg-success/10 text-success">
+                        {jobCandidates.length} candidates
+                      </Badge>
+                    </div>
+                  </div>
+                );
+              })}
             </CardContent>
           </Card>
         </div>

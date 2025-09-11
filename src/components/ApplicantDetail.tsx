@@ -5,19 +5,20 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Mail, Phone, MapPin, Calendar, Building, FileText, Edit } from "lucide-react";
 import { StatusBadge } from "./StatusBadge";
-import { InterviewStage, INTERVIEW_STAGE_LABELS } from "@/types/applicant";
-import { useApplicants } from "@/hooks/useApplicants";
+import { CandidateStage, CANDIDATE_STAGE_LABELS } from "@/types/applicant";
+import { useJobs } from "@/hooks/useJobs";
 import { useToast } from "@/hooks/use-toast";
 
 export const ApplicantDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { getApplicant, updateApplicant } = useApplicants();
+  const { getCandidate, updateCandidate, getJob } = useJobs();
   const { toast } = useToast();
   
-  const applicant = id ? getApplicant(id) : null;
+  const candidate = id ? getCandidate(id) : null;
+  const job = candidate ? getJob(candidate.jobId) : null;
 
-  if (!applicant) {
+  if (!candidate) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-muted p-6">
         <div className="max-w-4xl mx-auto text-center py-12">
@@ -31,19 +32,11 @@ export const ApplicantDetail = () => {
     );
   }
 
-  const handleStageUpdate = (newStage: InterviewStage) => {
-    updateApplicant(applicant.id, { interviewStage: newStage });
+  const handleStageUpdate = (newStage: CandidateStage) => {
+    updateCandidate(candidate.id, { stage: newStage });
     toast({
-      title: "Status Updated",
-      description: `${applicant.name} has been moved to ${INTERVIEW_STAGE_LABELS[newStage]}`,
-    });
-  };
-
-  const handleJobAcceptance = (accepted: boolean) => {
-    updateApplicant(applicant.id, { jobAccepted: accepted });
-    toast({
-      title: "Job Status Updated",
-      description: `Job ${accepted ? 'accepted' : 'declined'} status recorded for ${applicant.name}`,
+      title: "Status Updated", 
+      description: `${candidate.name} has been moved to ${CANDIDATE_STAGE_LABELS[newStage]}`,
     });
   };
 

@@ -1,48 +1,36 @@
 import { Badge } from "@/components/ui/badge";
-import { InterviewStage, INTERVIEW_STAGE_LABELS } from "@/types/applicant";
+import { CandidateStage, CANDIDATE_STAGE_LABELS } from "@/types/applicant";
 
 interface StatusBadgeProps {
-  stage: InterviewStage;
+  stage: CandidateStage;
 }
 
 export const StatusBadge = ({ stage }: StatusBadgeProps) => {
-  const getVariant = (stage: InterviewStage) => {
+  const getVariant = (stage: CandidateStage) => {
     switch (stage) {
-      case InterviewStage.APPLIED:
+      case CandidateStage.NEW_APPLICANT:
         return "secondary";
-      case InterviewStage.SCREENING:
+      case CandidateStage.SENT_FOR_REVIEW:
         return "default";
-      case InterviewStage.FIRST_INTERVIEW:
-      case InterviewStage.SECOND_INTERVIEW:
-      case InterviewStage.FINAL_INTERVIEW:
+      case CandidateStage.PROGRESSED:
         return "default";
-      case InterviewStage.OFFER_MADE:
-        return "default";
-      case InterviewStage.REJECTED:
+      case CandidateStage.REJECTED:
         return "destructive";
-      case InterviewStage.WITHDRAWN:
-        return "secondary";
       default:
         return "secondary";
     }
   };
 
-  const getClassName = (stage: InterviewStage) => {
+  const getClassName = (stage: CandidateStage) => {
     switch (stage) {
-      case InterviewStage.APPLIED:
+      case CandidateStage.NEW_APPLICANT:
         return "bg-info text-info-foreground";
-      case InterviewStage.SCREENING:
+      case CandidateStage.SENT_FOR_REVIEW:
         return "bg-warning text-warning-foreground";
-      case InterviewStage.FIRST_INTERVIEW:
-      case InterviewStage.SECOND_INTERVIEW:
-      case InterviewStage.FINAL_INTERVIEW:
-        return "bg-primary text-primary-foreground";
-      case InterviewStage.OFFER_MADE:
+      case CandidateStage.PROGRESSED:
         return "bg-success text-success-foreground";
-      case InterviewStage.REJECTED:
+      case CandidateStage.REJECTED:
         return "bg-destructive text-destructive-foreground";
-      case InterviewStage.WITHDRAWN:
-        return "bg-muted text-muted-foreground";
       default:
         return "bg-secondary text-secondary-foreground";
     }
@@ -50,7 +38,7 @@ export const StatusBadge = ({ stage }: StatusBadgeProps) => {
 
   return (
     <Badge variant={getVariant(stage)} className={getClassName(stage)}>
-      {INTERVIEW_STAGE_LABELS[stage]}
+      {CANDIDATE_STAGE_LABELS[stage]}
     </Badge>
   );
 };

@@ -4,7 +4,8 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { Dashboard } from "./components/Dashboard";
-import { AddApplicant } from "./components/AddApplicant";
+import { JobPipeline } from "./components/JobPipeline";
+import { AddCandidate } from "./components/AddCandidate";
 import { ApplicantList } from "./components/ApplicantList";
 import { ApplicantDetail } from "./components/ApplicantDetail";
 import NotFound from "./pages/NotFound";
@@ -19,9 +20,12 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Dashboard />} />
-          <Route path="/add-applicant" element={<AddApplicant />} />
+          <Route path="/pipeline" element={<JobPipeline />} />
+          <Route path="/add-applicant" element={<AddCandidate />} />
+          <Route path="/add-candidate" element={<AddCandidate />} />
           <Route path="/applicants" element={<ApplicantList />} />
           <Route path="/applicants/:id" element={<ApplicantDetail />} />
+          <Route path="/candidates/:id" element={<ApplicantDetail />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

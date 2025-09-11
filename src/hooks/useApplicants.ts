@@ -1,39 +1,27 @@
 import { useState, useEffect } from 'react';
-import { Applicant } from '@/types/applicant';
-
-// Mock data for demonstration
-const mockApplicants: Applicant[] = [];
+import { Candidate } from '@/types/applicant';
+import { useJobs } from './useJobs';
 
 export const useApplicants = () => {
-  const [applicants, setApplicants] = useState<Applicant[]>(mockApplicants);
+  const { candidates, addCandidate, updateCandidate, deleteCandidate, getCandidate } = useJobs();
 
-  const addApplicant = (applicant: Omit<Applicant, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newApplicant: Applicant = {
-      ...applicant,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    setApplicants(prev => [newApplicant, ...prev]);
-    return newApplicant;
+  // For backward compatibility
+  const applicants = candidates;
+
+  const addApplicant = (applicant: Omit<Candidate, 'id' | 'createdAt' | 'updatedAt'>) => {
+    return addCandidate(applicant);
   };
 
-  const updateApplicant = (id: string, updates: Partial<Applicant>) => {
-    setApplicants(prev =>
-      prev.map(applicant =>
-        applicant.id === id
-          ? { ...applicant, ...updates, updatedAt: new Date().toISOString() }
-          : applicant
-      )
-    );
+  const updateApplicant = (id: string, updates: Partial<Candidate>) => {
+    updateCandidate(id, updates);
   };
 
   const deleteApplicant = (id: string) => {
-    setApplicants(prev => prev.filter(applicant => applicant.id !== id));
+    deleteCandidate(id);
   };
 
   const getApplicant = (id: string) => {
-    return applicants.find(applicant => applicant.id === id);
+    return getCandidate(id);
   };
 
   return {

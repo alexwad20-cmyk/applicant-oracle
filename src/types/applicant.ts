@@ -1,40 +1,58 @@
-export interface Applicant {
+export interface Job {
+  id: string;
+  title: string;
+  department: string;
+  hiringManager: string;
+  hiringManagerEmail: string;
+  description: string;
+  status: 'open' | 'closed' | 'paused';
+  createdAt: string;
+}
+
+export interface Candidate {
   id: string;
   name: string;
   email: string;
   phone: string;
   address: string;
+  jobId: string;
   dateOfApplication: string;
-  roleAppliedFor: string;
   needsVisa: boolean;
   fromAgency: boolean;
   agencyName?: string;
-  interviewStage: InterviewStage;
-  jobAccepted: boolean | null; // null = not yet decided
+  stage: CandidateStage;
   cvFile?: File;
   notes?: string;
+  emailSentAt?: string; // When email was sent to hiring manager
   createdAt: string;
   updatedAt: string;
 }
 
-export enum InterviewStage {
-  APPLIED = 'applied',
-  SCREENING = 'screening',
-  FIRST_INTERVIEW = 'first_interview',
-  SECOND_INTERVIEW = 'second_interview',
-  FINAL_INTERVIEW = 'final_interview',
-  OFFER_MADE = 'offer_made',
-  REJECTED = 'rejected',
-  WITHDRAWN = 'withdrawn'
+export enum CandidateStage {
+  NEW_APPLICANT = 'new_applicant',
+  SENT_FOR_REVIEW = 'sent_for_review',
+  PROGRESSED = 'progressed',
+  REJECTED = 'rejected'
 }
 
-export const INTERVIEW_STAGE_LABELS: Record<InterviewStage, string> = {
-  [InterviewStage.APPLIED]: 'Applied',
-  [InterviewStage.SCREENING]: 'Screening',
-  [InterviewStage.FIRST_INTERVIEW]: 'First Interview',
-  [InterviewStage.SECOND_INTERVIEW]: 'Second Interview',
-  [InterviewStage.FINAL_INTERVIEW]: 'Final Interview',
-  [InterviewStage.OFFER_MADE]: 'Offer Made',
-  [InterviewStage.REJECTED]: 'Rejected',
-  [InterviewStage.WITHDRAWN]: 'Withdrawn'
+export const CANDIDATE_STAGE_LABELS: Record<CandidateStage, string> = {
+  [CandidateStage.NEW_APPLICANT]: 'New Applicant',
+  [CandidateStage.SENT_FOR_REVIEW]: 'Sent for Review',
+  [CandidateStage.PROGRESSED]: 'Progressed',
+  [CandidateStage.REJECTED]: 'Rejected'
 };
+
+export interface EmailTemplate {
+  id: string;
+  subject: string;
+  content: string;
+  candidateId: string;
+  hiringManagerEmail: string;
+  sentAt: string;
+  responseToken: string;
+}
+
+// Legacy types for backwards compatibility
+export type Applicant = Candidate;
+export type InterviewStage = CandidateStage;
+export const INTERVIEW_STAGE_LABELS = CANDIDATE_STAGE_LABELS;
