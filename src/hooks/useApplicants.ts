@@ -1,6 +1,5 @@
-import { useState, useEffect } from 'react';
 import { Candidate } from '@/types/applicant';
-import { useJobs } from './useJobs';
+import { useJobs } from '@/contexts/JobsContext';
 
 export const useApplicants = () => {
   const { candidates, addCandidate, updateCandidate, deleteCandidate, getCandidate } = useJobs();
