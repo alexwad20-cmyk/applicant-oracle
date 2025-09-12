@@ -6,33 +6,32 @@ import { Plus, Users, Clock, CheckCircle, XCircle, Briefcase } from "lucide-reac
 import { Link } from "react-router-dom";
 import { CandidateStage } from "@/types/applicant";
 import { useJobs } from "@/hooks/useJobs";
-
 export const Dashboard = () => {
-  const { jobs, candidates } = useJobs();
-
+  const {
+    jobs,
+    candidates
+  } = useJobs();
   const stats = useMemo(() => {
     const total = candidates.length;
     const newApplicants = candidates.filter(c => c.stage === CandidateStage.NEW_APPLICANT).length;
     const sentForReview = candidates.filter(c => c.stage === CandidateStage.SENT_FOR_REVIEW).length;
     const progressed = candidates.filter(c => c.stage === CandidateStage.PROGRESSED).length;
     const rejected = candidates.filter(c => c.stage === CandidateStage.REJECTED).length;
-
-    return { total, newApplicants, sentForReview, progressed, rejected };
+    return {
+      total,
+      newApplicants,
+      sentForReview,
+      progressed,
+      rejected
+    };
   }, [candidates]);
-
-  const recentCandidates = useMemo(() => 
-    candidates
-      .sort((a, b) => new Date(b.dateOfApplication).getTime() - new Date(a.dateOfApplication).getTime())
-      .slice(0, 5)
-  , [candidates]);
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted p-6">
+  const recentCandidates = useMemo(() => candidates.sort((a, b) => new Date(b.dateOfApplication).getTime() - new Date(a.dateOfApplication).getTime()).slice(0, 5), [candidates]);
+  return <div className="min-h-screen bg-gradient-to-br from-background to-muted p-6">
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
         <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-4xl font-bold text-foreground">Candidate Pipeline</h1>
+          <h1 className="text-4xl font-bold text-foreground">Agency Candidate Pipeline</h1>
           <p className="text-muted-foreground mt-2">Track candidates through the hiring process</p>
         </div>
         <div className="flex gap-2">
@@ -106,13 +105,9 @@ export const Dashboard = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {recentCandidates.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">No candidates yet</p>
-              ) : (
-                recentCandidates.map((candidate) => {
-                  const job = jobs.find(j => j.id === candidate.jobId);
-                  return (
-                    <div key={candidate.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+              {recentCandidates.length === 0 ? <p className="text-muted-foreground text-center py-8">No candidates yet</p> : recentCandidates.map(candidate => {
+              const job = jobs.find(j => j.id === candidate.jobId);
+              return <div key={candidate.id} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
                       <div>
                         <p className="font-medium">{candidate.name}</p>
                         <p className="text-sm text-muted-foreground">{job?.title || 'Unknown Position'}</p>
@@ -120,10 +115,8 @@ export const Dashboard = () => {
                       <Badge variant="secondary" className="bg-info text-info-foreground">
                         {new Date(candidate.dateOfApplication).toLocaleDateString()}
                       </Badge>
-                    </div>
-                  );
-                })
-              )}
+                    </div>;
+            })}
             </CardContent>
           </Card>
 
@@ -132,10 +125,9 @@ export const Dashboard = () => {
               <CardTitle>Open Positions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {jobs.filter(job => job.status === 'open').map((job) => {
-                const jobCandidates = candidates.filter(c => c.jobId === job.id);
-                return (
-                  <div key={job.id} className="p-3 rounded-lg bg-muted/50">
+              {jobs.filter(job => job.status === 'open').map(job => {
+              const jobCandidates = candidates.filter(c => c.jobId === job.id);
+              return <div key={job.id} className="p-3 rounded-lg bg-muted/50">
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="font-medium">{job.title}</p>
@@ -146,13 +138,11 @@ export const Dashboard = () => {
                         {jobCandidates.length} candidates
                       </Badge>
                     </div>
-                  </div>
-                );
-              })}
+                  </div>;
+            })}
             </CardContent>
           </Card>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 };
