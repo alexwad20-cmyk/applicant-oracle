@@ -55,10 +55,10 @@ export const ApplicantDetail = () => {
           </Button>
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-3xl font-bold text-foreground">{applicant.name}</h1>
-              <p className="text-muted-foreground mt-2">Applied for {applicant.roleAppliedFor}</p>
+              <h1 className="text-3xl font-bold text-foreground">{candidate.name}</h1>
+              <p className="text-muted-foreground mt-2">Applied for {job?.title || 'Unknown Position'}</p>
             </div>
-            <StatusBadge stage={applicant.interviewStage} />
+            <StatusBadge stage={candidate.stage} />
           </div>
         </div>
 
@@ -74,18 +74,18 @@ export const ApplicantDetail = () => {
             <CardContent className="space-y-4">
               <div className="flex items-center space-x-3">
                 <Mail className="h-4 w-4 text-muted-foreground" />
-                <span>{applicant.email}</span>
+                <span>{candidate.email}</span>
               </div>
-              {applicant.phone && (
+              {candidate.phone && (
                 <div className="flex items-center space-x-3">
                   <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span>{applicant.phone}</span>
+                  <span>{candidate.phone}</span>
                 </div>
               )}
-              {applicant.address && (
+              {candidate.address && (
                 <div className="flex items-start space-x-3">
                   <MapPin className="h-4 w-4 text-muted-foreground mt-1" />
-                  <span>{applicant.address}</span>
+                  <span>{candidate.address}</span>
                 </div>
               )}
             </CardContent>
@@ -102,31 +102,23 @@ export const ApplicantDetail = () => {
             <CardContent className="space-y-4">
               <div className="flex items-center space-x-3">
                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span>Applied on {new Date(applicant.dateOfApplication).toLocaleDateString()}</span>
+                <span>Applied on {new Date(candidate.dateOfApplication).toLocaleDateString()}</span>
               </div>
               
               <div className="flex items-center space-x-3">
                 <Building className="h-4 w-4 text-muted-foreground" />
-                <span>{applicant.roleAppliedFor}</span>
+                <span>{job?.title || 'Unknown Position'}</span>
               </div>
 
               <div className="flex flex-wrap gap-2">
-                {applicant.needsVisa && (
+                {candidate.needsVisa && (
                   <Badge variant="outline" className="bg-warning/10 text-warning border-warning/20">
                     Visa Required
                   </Badge>
                 )}
-                {applicant.fromAgency && (
+                {candidate.fromAgency && (
                   <Badge variant="outline" className="bg-info/10 text-info border-info/20">
-                    From Agency: {applicant.agencyName || 'N/A'}
-                  </Badge>
-                )}
-                {applicant.jobAccepted === true && (
-                  <Badge className="bg-success text-success-foreground">Job Accepted</Badge>
-                )}
-                {applicant.jobAccepted === false && (
-                  <Badge variant="outline" className="bg-destructive/10 text-destructive border-destructive/20">
-                    Job Declined
+                    From Agency: {candidate.agencyName || 'N/A'}
                   </Badge>
                 )}
               </div>
@@ -142,59 +134,38 @@ export const ApplicantDetail = () => {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Current Stage</label>
                 <Select
-                  value={applicant.interviewStage}
-                  onValueChange={(value) => handleStageUpdate(value as InterviewStage)}
+                  value={candidate.stage}
+                  onValueChange={(value) => handleStageUpdate(value as CandidateStage)}
                 >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(INTERVIEW_STAGE_LABELS).map(([value, label]) => (
+                    {Object.entries(CANDIDATE_STAGE_LABELS).map(([value, label]) => (
                       <SelectItem key={value} value={value}>{label}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
-              {applicant.interviewStage === InterviewStage.OFFER_MADE && applicant.jobAccepted === null && (
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Job Response</label>
-                  <div className="flex space-x-2">
-                    <Button
-                      onClick={() => handleJobAcceptance(true)}
-                      className="bg-success hover:bg-success/90 text-success-foreground"
-                    >
-                      Accepted
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleJobAcceptance(false)}
-                      className="border-destructive text-destructive hover:bg-destructive/10"
-                    >
-                      Declined
-                    </Button>
-                  </div>
-                </div>
-              )}
             </CardContent>
           </Card>
 
           {/* Notes */}
-          {applicant.notes && (
+          {candidate.notes && (
             <Card className="shadow-soft border-0">
               <CardHeader>
                 <CardTitle>Notes</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                  {applicant.notes}
+                  {candidate.notes}
                 </p>
               </CardContent>
             </Card>
           )}
 
           {/* CV Information */}
-          {applicant.cvFile && (
+          {candidate.cvFile && (
             <Card className="shadow-soft border-0">
               <CardHeader>
                 <CardTitle className="flex items-center">
@@ -204,7 +175,7 @@ export const ApplicantDetail = () => {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
-                  <span className="text-sm">{applicant.cvFile.name}</span>
+                  <span className="text-sm">{candidate.cvFile.name}</span>
                   <Button variant="outline" size="sm">
                     Download
                   </Button>
