@@ -8,92 +8,85 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Upload, FileText, User, Briefcase } from "lucide-react";
-import { useJobs } from "@/hooks/useJobs";
-import { CandidateStage } from "@/types/applicant";
+import { useJobs } from "@/contexts/JobsContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { AppLayout } from "./AppLayout";
+import { CandidateSource } from "@/types/database";
 
 export const AddCandidate = () => {
   const navigate = useNavigate();
   const { jobs, addCandidate } = useJobs();
+  const { user } = useAuth();
   const { toast } = useToast();
-  
+
   const [formData, setFormData] = useState({
-    name: "",
+    full_name: "",
     email: "",
     phone: "",
-    address: "",
-    jobId: "",
-    dateOfApplication: new Date().toISOString().split('T')[0],
-    needsVisa: false,
-    fromAgency: false,
-    agencyName: "",
+    job_id: "",
+    source: "direct" as CandidateSource,
+    visa_required: false,
+    agency_name: "",
     notes: "",
   });
 
   const [cvFile, setCvFile] = useState<File | null>(null);
-  const [parsedData, setParsedData] = useState<any>(null);
+  const [uploading, setUploading] = useState(false);
 
   const handleCvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      setCvFile(file);
-      
-      // Simulate CV parsing
-      setTimeout(() => {
-        const mockParsedData = {
-          name: "John Doe",
-          email: "john.doe@email.com", 
-          phone: "+44 7123 456789",
-          address: "123 Main St, London, UK"
-        };
-        setParsedData(mockParsedData);
-        setFormData(prev => ({
-          ...prev,
-          ...mockParsedData
-        }));
-        
-        toast({
-          title: "CV Parsed Successfully",
-          description: "Candidate information has been extracted from the CV",
-        });
-      }, 1500);
-    }
+    if (file) setCvFile(file);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (!formData.jobId) {
-      toast({
-        title: "Please select a job",
-        description: "A job position must be selected for the candidate",
-        variant: "destructive",
-      });
+
+    if (!formData.job_id) {
+      toast({ title: "Please select a job", variant: "destructive" });
       return;
     }
 
-    const newCandidate = addCandidate({
+    setUploading(true);
+    let cvPath: string | null = null;
+
+    // Upload CV if present
+    if (cvFile) {
+      const ext = cvFile.name.split('.').pop();
+      const fileName = `${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('candidate-cvs')
+        .upload(fileName, cvFile);
+      if (uploadError) {
+        toast({ title: "CV upload failed", description: uploadError.message, variant: "destructive" });
+        setUploading(false);
+        return;
+      }
+      cvPath = fileName;
+    }
+
+    const result = await addCandidate({
       ...formData,
-      stage: CandidateStage.NEW_APPLICANT,
-      cvFile: cvFile || undefined,
+      cv_file_path: cvPath,
+      stage: 'new_applicant',
+      agency_name: formData.source === 'agency' ? formData.agency_name : null,
     });
 
-    toast({
-      title: "Candidate Added",
-      description: `${formData.name} has been added successfully`,
-    });
+    setUploading(false);
 
-    navigate("/pipeline");
+    if (result) {
+      toast({ title: "Candidate Added", description: `${formData.full_name} added successfully` });
+      navigate("/pipeline");
+    } else {
+      toast({ title: "Error adding candidate", variant: "destructive" });
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted p-6">
-      <div className="max-w-4xl mx-auto">
-        <Button 
-          variant="ghost" 
-          onClick={() => navigate("/pipeline")}
-          className="mb-6"
-        >
+    <AppLayout>
+      <div className="max-w-4xl mx-auto p-6">
+        <Button variant="ghost" onClick={() => navigate("/pipeline")} className="mb-6">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Back to Pipeline
         </Button>
@@ -101,225 +94,134 @@ export const AddCandidate = () => {
         <div className="space-y-6">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Add New Candidate</h1>
-            <p className="text-muted-foreground mt-2">Add a new candidate to the hiring pipeline</p>
+            <p className="text-muted-foreground mt-1">Add a candidate to the hiring pipeline</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* CV Upload Section */}
-            <Card className="shadow-soft border-0">
+            {/* CV Upload */}
+            <Card className="border-0 shadow-sm">
               <CardHeader>
-                <CardTitle className="flex items-center">
+                <CardTitle className="flex items-center text-lg">
                   <FileText className="h-5 w-5 mr-2" />
-                  CV Upload & Parsing
+                  CV Upload
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent>
                 <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 text-center">
-                  <Upload className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      Upload a CV to automatically extract candidate information
-                    </p>
-                    <input
-                      type="file"
-                      accept=".pdf,.doc,.docx"
-                      onChange={handleCvUpload}
-                      className="hidden"
-                      id="cv-upload"
-                    />
-                    <Label htmlFor="cv-upload" className="cursor-pointer">
-                      <Button type="button" variant="outline" className="mt-2">
-                        Choose File
-                      </Button>
-                    </Label>
-                  </div>
+                  <Upload className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                  <p className="text-sm text-muted-foreground mb-2">Upload candidate CV (PDF, DOC)</p>
+                  <input type="file" accept=".pdf,.doc,.docx" onChange={handleCvUpload} className="hidden" id="cv-upload" />
+                  <Label htmlFor="cv-upload" className="cursor-pointer">
+                    <Button type="button" variant="outline" size="sm">Choose File</Button>
+                  </Label>
                 </div>
-                
                 {cvFile && (
-                  <div className="bg-muted/50 p-4 rounded-lg">
-                    <p className="text-sm font-medium">Uploaded: {cvFile.name}</p>
-                    {parsedData && (
-                      <div className="mt-2 text-xs text-success">
-                        ✓ CV parsed successfully - information populated below
-                      </div>
-                    )}
-                  </div>
+                  <p className="text-sm mt-2 text-muted-foreground">Selected: {cvFile.name}</p>
                 )}
               </CardContent>
             </Card>
 
             {/* Job Selection */}
-            <Card className="shadow-soft border-0">
+            <Card className="border-0 shadow-sm">
               <CardHeader>
-                <CardTitle className="flex items-center">
+                <CardTitle className="flex items-center text-lg">
                   <Briefcase className="h-5 w-5 mr-2" />
                   Job Position
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <Label htmlFor="job">Select Job Position *</Label>
-                  <Select value={formData.jobId} onValueChange={(value) => 
-                    setFormData(prev => ({ ...prev, jobId: value }))
-                  }>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a job position" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {jobs.filter(job => job.status === 'open').map((job) => (
-                        <SelectItem key={job.id} value={job.id}>
-                          {job.title} - {job.department}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                <Label htmlFor="job">Select Job *</Label>
+                <Select value={formData.job_id} onValueChange={(v) => setFormData(p => ({ ...p, job_id: v }))}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select a job" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {jobs.filter(j => j.status === 'open').map(job => (
+                      <SelectItem key={job.id} value={job.id}>
+                        {job.title} — {job.department}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </CardContent>
             </Card>
 
-            {/* Personal Information */}
-            <Card className="shadow-soft border-0">
+            {/* Personal Info */}
+            <Card className="border-0 shadow-sm">
               <CardHeader>
-                <CardTitle className="flex items-center">
+                <CardTitle className="flex items-center text-lg">
                   <User className="h-5 w-5 mr-2" />
                   Personal Information
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Full Name *</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                      placeholder="Enter full name"
-                      required
-                    />
+                  <div className="space-y-1">
+                    <Label>Full Name *</Label>
+                    <Input value={formData.full_name} onChange={(e) => setFormData(p => ({ ...p, full_name: e.target.value }))} required />
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="email">Email *</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                      placeholder="Enter email address"
-                      required
-                    />
+                  <div className="space-y-1">
+                    <Label>Email</Label>
+                    <Input type="email" value={formData.email} onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))} />
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="phone">Phone Number *</Label>
-                    <Input
-                      id="phone"
-                      value={formData.phone}
-                      onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                      placeholder="Enter phone number"
-                      required
-                    />
+                  <div className="space-y-1">
+                    <Label>Phone</Label>
+                    <Input value={formData.phone} onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))} />
                   </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="dateOfApplication">Application Date</Label>
-                    <Input
-                      id="dateOfApplication"
-                      type="date"
-                      value={formData.dateOfApplication}
-                      onChange={(e) => setFormData(prev => ({ ...prev, dateOfApplication: e.target.value }))}
-                    />
+                  <div className="space-y-1">
+                    <Label>Source</Label>
+                    <Select value={formData.source} onValueChange={(v) => setFormData(p => ({ ...p, source: v as CandidateSource }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="direct">Direct</SelectItem>
+                        <SelectItem value="agency">Agency</SelectItem>
+                        <SelectItem value="referral">Referral</SelectItem>
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="address">Address</Label>
-                  <Textarea
-                    id="address"
-                    value={formData.address}
-                    onChange={(e) => setFormData(prev => ({ ...prev, address: e.target.value }))}
-                    placeholder="Enter full address"
-                    rows={2}
+                {formData.source === 'agency' && (
+                  <div className="space-y-1">
+                    <Label>Agency Name</Label>
+                    <Input value={formData.agency_name} onChange={(e) => setFormData(p => ({ ...p, agency_name: e.target.value }))} />
+                  </div>
+                )}
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="visa"
+                    checked={formData.visa_required}
+                    onCheckedChange={(checked) => setFormData(p => ({ ...p, visa_required: checked as boolean }))}
                   />
+                  <Label htmlFor="visa">Requires visa sponsorship</Label>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Application Details */}
-            <Card className="shadow-soft border-0">
-              <CardHeader>
-                <CardTitle>Application Details</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="needsVisa"
-                      checked={formData.needsVisa}
-                      onCheckedChange={(checked) => 
-                        setFormData(prev => ({ ...prev, needsVisa: checked as boolean }))
-                      }
-                    />
-                    <Label htmlFor="needsVisa">Requires visa sponsorship</Label>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="fromAgency"
-                      checked={formData.fromAgency}
-                      onCheckedChange={(checked) => 
-                        setFormData(prev => ({ ...prev, fromAgency: checked as boolean }))
-                      }
-                    />
-                    <Label htmlFor="fromAgency">Candidate from recruitment agency</Label>
-                  </div>
-                  
-                  {formData.fromAgency && (
-                    <div className="space-y-2 ml-6">
-                      <Label htmlFor="agencyName">Agency Name</Label>
-                      <Input
-                        id="agencyName"
-                        value={formData.agencyName}
-                        onChange={(e) => setFormData(prev => ({ ...prev, agencyName: e.target.value }))}
-                        placeholder="Enter agency name"
-                      />
-                    </div>
-                  )}
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="notes">Notes</Label>
-                  <Textarea
-                    id="notes"
-                    value={formData.notes}
-                    onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                    placeholder="Add any additional notes about the candidate"
-                    rows={3}
-                  />
-                </div>
+            {/* Notes */}
+            <Card className="border-0 shadow-sm">
+              <CardContent className="pt-6">
+                <Label>Notes</Label>
+                <Textarea
+                  value={formData.notes}
+                  onChange={(e) => setFormData(p => ({ ...p, notes: e.target.value }))}
+                  placeholder="Additional notes"
+                  rows={3}
+                  className="mt-1"
+                />
               </CardContent>
             </Card>
 
-            {/* Submit Button */}
             <div className="flex gap-4">
-              <Button 
-                type="submit" 
-                className="flex-1 bg-primary hover:bg-primary/90 text-primary-foreground"
-              >
-                Add Candidate
+              <Button type="submit" className="flex-1" disabled={uploading}>
+                {uploading ? 'Adding...' : 'Add Candidate'}
               </Button>
-              <Button 
-                type="button" 
-                variant="outline" 
-                onClick={() => navigate("/pipeline")}
-                className="flex-1"
-              >
+              <Button type="button" variant="outline" onClick={() => navigate("/pipeline")} className="flex-1">
                 Cancel
               </Button>
             </div>
           </form>
         </div>
       </div>
-    </div>
+    </AppLayout>
   );
 };

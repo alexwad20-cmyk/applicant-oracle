@@ -1,35 +1,20 @@
 import { Badge } from "@/components/ui/badge";
-import { CandidateStage, CANDIDATE_STAGE_LABELS } from "@/types/applicant";
+import { CandidateStage, STAGE_LABELS } from "@/types/database";
 
 interface StatusBadgeProps {
   stage: CandidateStage;
 }
 
 export const StatusBadge = ({ stage }: StatusBadgeProps) => {
-  const getVariant = (stage: CandidateStage) => {
-    switch (stage) {
-      case CandidateStage.NEW_APPLICANT:
-        return "secondary";
-      case CandidateStage.SENT_FOR_REVIEW:
-        return "default";
-      case CandidateStage.PROGRESSED:
-        return "default";
-      case CandidateStage.REJECTED:
-        return "destructive";
-      default:
-        return "secondary";
-    }
-  };
-
   const getClassName = (stage: CandidateStage) => {
     switch (stage) {
-      case CandidateStage.NEW_APPLICANT:
+      case 'new_applicant':
         return "bg-info text-info-foreground";
-      case CandidateStage.SENT_FOR_REVIEW:
+      case 'hm_review':
         return "bg-warning text-warning-foreground";
-      case CandidateStage.PROGRESSED:
+      case 'hm_approved':
         return "bg-success text-success-foreground";
-      case CandidateStage.REJECTED:
+      case 'hm_rejected':
         return "bg-destructive text-destructive-foreground";
       default:
         return "bg-secondary text-secondary-foreground";
@@ -37,8 +22,8 @@ export const StatusBadge = ({ stage }: StatusBadgeProps) => {
   };
 
   return (
-    <Badge variant={getVariant(stage)} className={getClassName(stage)}>
-      {CANDIDATE_STAGE_LABELS[stage]}
+    <Badge className={getClassName(stage)}>
+      {STAGE_LABELS[stage] || stage}
     </Badge>
   );
 };
