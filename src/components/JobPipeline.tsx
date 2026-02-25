@@ -1,202 +1,124 @@
-import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowLeft, Users, Mail, Check, X, Eye, ExternalLink } from "lucide-react";
-import { useJobs } from "@/hooks/useJobs";
-import { Job, Candidate, CandidateStage, CANDIDATE_STAGE_LABELS } from "@/types/applicant";
+import { Users, Mail, Eye } from "lucide-react";
+import { useJobs } from "@/contexts/JobsContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { StatusBadge } from "./StatusBadge";
-import { EmailPreview } from "./EmailPreview";
 import { useToast } from "@/hooks/use-toast";
+import { AppLayout } from "./AppLayout";
+import { DbCandidate, DbJob, CandidateStage } from "@/types/database";
 
 export const JobPipeline = () => {
   const navigate = useNavigate();
-  const { jobs, candidates, updateCandidate, getCandidatesForJob } = useJobs();
+  const { jobs, candidates, getCandidatesForJob, updateCandidateStage } = useJobs();
+  const { isHrOrAdmin } = useAuth();
   const { toast } = useToast();
-  const [selectedJob, setSelectedJob] = useState<Job | null>(null);
 
-  const handleSendForReview = (candidate: Candidate) => {
-    const job = jobs.find(j => j.id === candidate.jobId);
-    if (!job) return;
-
-    // Simulate sending email to hiring manager
-    updateCandidate(candidate.id, {
-      stage: CandidateStage.SENT_FOR_REVIEW,
-      emailSentAt: new Date().toISOString()
-    });
-
-    toast({
-      title: "Email Sent",
-      description: `CV sent to ${job.hiringManager} for review`,
-    });
+  const handleSendForReview = async (candidate: DbCandidate) => {
+    await updateCandidateStage(candidate.id, 'hm_review', 'Sent to hiring manager for review');
+    toast({ title: "Sent for HM Review", description: `${candidate.full_name} sent for review` });
   };
 
-  const renderCandidateCard = (candidate: Candidate, job: Job) => (
-    <div key={candidate.id} className="p-4 border rounded-lg bg-card">
-      <div className="flex justify-between items-start mb-2">
-        <div>
-          <h4 className="font-medium">{candidate.name}</h4>
-          <p className="text-sm text-muted-foreground">{candidate.email}</p>
-        </div>
-        <StatusBadge stage={candidate.stage as any} />
-      </div>
-      
-      <div className="flex gap-2 mb-3">
-        {candidate.needsVisa && (
-          <Badge variant="outline" className="text-xs">Visa Required</Badge>
-        )}
-        {candidate.fromAgency && (
-          <Badge variant="outline" className="text-xs">Agency</Badge>
-        )}
-      </div>
+  const stages: { key: CandidateStage; label: string; color: string }[] = [
+    { key: 'new_applicant', label: 'New Applicants', color: 'bg-info' },
+    { key: 'hm_review', label: 'HM Review', color: 'bg-warning' },
+    { key: 'hm_approved', label: 'Approved', color: 'bg-success' },
+    { key: 'hm_rejected', label: 'Rejected', color: 'bg-destructive' },
+  ];
 
-      <div className="flex gap-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => navigate(`/candidates/${candidate.id}`)}
-        >
-          <Eye className="h-3 w-3" />
-        </Button>
-        
-        {candidate.stage === CandidateStage.NEW_APPLICANT && (
-          <Button
-            variant="default"
-            size="sm"
-            onClick={() => handleSendForReview(candidate)}
-            className="text-xs"
-          >
-            <Mail className="h-3 w-3 mr-1" />
-            Send for Review
+  const renderCandidateCard = (candidate: DbCandidate) => {
+    const isOverdue = candidate.stage === 'hm_review' && candidate.hm_review_due_at && new Date(candidate.hm_review_due_at) < new Date();
+
+    return (
+      <div key={candidate.id} className={`p-3 border rounded-lg bg-card ${isOverdue ? 'border-destructive/50' : ''}`}>
+        <div className="flex justify-between items-start mb-2">
+          <div>
+            <h4 className="font-medium text-sm">{candidate.full_name}</h4>
+            <p className="text-xs text-muted-foreground">{candidate.email}</p>
+          </div>
+          <StatusBadge stage={candidate.stage} />
+        </div>
+
+        <div className="flex gap-1 mb-2 flex-wrap">
+          {candidate.visa_required && <Badge variant="outline" className="text-xs">Visa</Badge>}
+          {candidate.source === 'agency' && <Badge variant="outline" className="text-xs">Agency</Badge>}
+          {isOverdue && <Badge variant="destructive" className="text-xs">Overdue</Badge>}
+        </div>
+
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/candidates/${candidate.id}`)}>
+            <Eye className="h-3 w-3" />
           </Button>
-        )}
-        
-        {candidate.stage === CandidateStage.SENT_FOR_REVIEW && (
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm" className="text-xs">
-                <ExternalLink className="h-3 w-3 mr-1" />
-                View Email
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-2xl">
-              <DialogHeader>
-                <DialogTitle>Email Sent to Hiring Manager</DialogTitle>
-              </DialogHeader>
-              <EmailPreview candidate={candidate} job={job} />
-            </DialogContent>
-          </Dialog>
-        )}
+          {isHrOrAdmin && candidate.stage === 'new_applicant' && (
+            <Button size="sm" onClick={() => handleSendForReview(candidate)} className="text-xs">
+              <Mail className="h-3 w-3 mr-1" />
+              Send for Review
+            </Button>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-muted p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <Button 
-            variant="ghost" 
-            onClick={() => navigate("/")}
-            className="mb-4"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
-          </Button>
+    <AppLayout>
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="mb-6">
           <h1 className="text-3xl font-bold text-foreground">Job Pipeline</h1>
-          <p className="text-muted-foreground mt-2">Manage candidates by job position</p>
+          <p className="text-muted-foreground mt-1">Manage candidates by job and stage</p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-          {jobs.filter(job => job.status === 'open').map(job => {
-            const jobCandidates = getCandidatesForJob(job.id);
-            const newApplicants = jobCandidates.filter(c => c.stage === CandidateStage.NEW_APPLICANT);
-            const sentForReview = jobCandidates.filter(c => c.stage === CandidateStage.SENT_FOR_REVIEW);
-            const progressed = jobCandidates.filter(c => c.stage === CandidateStage.PROGRESSED);
-            const rejected = jobCandidates.filter(c => c.stage === CandidateStage.REJECTED);
-
-            return (
-              <Card key={job.id} className="shadow-soft border-0">
-                <CardHeader>
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <CardTitle className="text-lg">{job.title}</CardTitle>
-                      <p className="text-sm text-muted-foreground">{job.department}</p>
-                      <p className="text-xs text-muted-foreground">HM: {job.hiringManager}</p>
+        {jobs.filter(j => j.status === 'open').length === 0 ? (
+          <Card className="border-0 shadow-sm">
+            <CardContent className="text-center py-12">
+              <p className="text-muted-foreground">No open positions. Create a job first.</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="space-y-8">
+            {jobs.filter(j => j.status === 'open').map(job => {
+              const jobCandidates = getCandidatesForJob(job.id);
+              return (
+                <Card key={job.id} className="border-0 shadow-sm">
+                  <CardHeader>
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <CardTitle className="text-lg">{job.title}</CardTitle>
+                        <p className="text-sm text-muted-foreground">{job.department} • {job.location}</p>
+                      </div>
+                      <Badge variant="outline">{jobCandidates.length} candidates</Badge>
                     </div>
-                    <Badge variant="outline" className="bg-success/10 text-success">
-                      {jobCandidates.length} candidates
-                    </Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  {/* New Applicants */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-3 h-3 rounded-full bg-info"></div>
-                      <h4 className="font-medium text-sm">New Applicants ({newApplicants.length})</h4>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      {stages.map(stage => {
+                        const stageCandidates = jobCandidates.filter(c => c.stage === stage.key);
+                        return (
+                          <div key={stage.key}>
+                            <div className="flex items-center gap-2 mb-3">
+                              <div className={`w-2.5 h-2.5 rounded-full ${stage.color}`} />
+                              <h4 className="font-medium text-sm">{stage.label} ({stageCandidates.length})</h4>
+                            </div>
+                            <div className="space-y-2">
+                              {stageCandidates.length === 0 ? (
+                                <p className="text-xs text-muted-foreground pl-4">None</p>
+                              ) : (
+                                stageCandidates.map(c => renderCandidateCard(c))
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <div className="space-y-2 pl-5">
-                      {newApplicants.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">No new applicants</p>
-                      ) : (
-                        newApplicants.map(candidate => renderCandidateCard(candidate, job))
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Sent for Review */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-3 h-3 rounded-full bg-warning"></div>
-                      <h4 className="font-medium text-sm">Sent for Review ({sentForReview.length})</h4>
-                    </div>
-                    <div className="space-y-2 pl-5">
-                      {sentForReview.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">None pending review</p>
-                      ) : (
-                        sentForReview.map(candidate => renderCandidateCard(candidate, job))
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Progressed */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-3 h-3 rounded-full bg-success"></div>
-                      <h4 className="font-medium text-sm">Progressed ({progressed.length})</h4>
-                    </div>
-                    <div className="space-y-2 pl-5">
-                      {progressed.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">None progressed yet</p>
-                      ) : (
-                        progressed.map(candidate => renderCandidateCard(candidate, job))
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Rejected */}
-                  <div>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="w-3 h-3 rounded-full bg-destructive"></div>
-                      <h4 className="font-medium text-sm">Rejected ({rejected.length})</h4>
-                    </div>
-                    <div className="space-y-2 pl-5">
-                      {rejected.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">None rejected</p>
-                      ) : (
-                        rejected.slice(0, 2).map(candidate => renderCandidateCard(candidate, job))
-                      )}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
-    </div>
+    </AppLayout>
   );
 };

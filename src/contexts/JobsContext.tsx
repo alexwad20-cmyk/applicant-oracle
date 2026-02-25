@@ -1,123 +1,165 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Job, Candidate } from '@/types/applicant';
-
-// Mock data for demonstration
-const mockJobs: Job[] = [
-  {
-    id: '1',
-    title: 'Senior Software Engineer',
-    department: 'Engineering',
-    hiringManager: 'John Smith',
-    hiringManagerEmail: 'john.smith@company.com',
-    description: 'Looking for an experienced software engineer to join our team',
-    status: 'open',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '2',
-    title: 'Product Manager',
-    department: 'Product',
-    hiringManager: 'Sarah Johnson',
-    hiringManagerEmail: 'sarah.johnson@company.com',
-    description: 'Seeking a product manager to lead our product initiatives',
-    status: 'open',
-    createdAt: new Date().toISOString(),
-  },
-  {
-    id: '3',
-    title: 'UX Designer',
-    department: 'Design',
-    hiringManager: 'Mike Chen',
-    hiringManagerEmail: 'mike.chen@company.com',
-    description: 'Creative UX designer needed for our growing team',
-    status: 'open',
-    createdAt: new Date().toISOString(),
-  }
-];
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuth } from './AuthContext';
+import { DbJob, DbCandidate, DbCandidateEvent, CandidateStage } from '@/types/database';
 
 interface JobsContextType {
-  jobs: Job[];
-  candidates: Candidate[];
-  addCandidate: (candidate: Omit<Candidate, 'id' | 'createdAt' | 'updatedAt'>) => Candidate;
-  updateCandidate: (id: string, updates: Partial<Candidate>) => void;
-  deleteCandidate: (id: string) => void;
-  getCandidate: (id: string) => Candidate | undefined;
-  getCandidatesForJob: (jobId: string) => Candidate[];
-  getJob: (id: string) => Job | undefined;
+  jobs: DbJob[];
+  candidates: DbCandidate[];
+  events: DbCandidateEvent[];
+  loading: boolean;
+  refreshJobs: () => Promise<void>;
+  refreshCandidates: () => Promise<void>;
+  refreshEvents: (candidateId: string) => Promise<void>;
+  addJob: (job: Partial<DbJob>) => Promise<DbJob | null>;
+  updateJob: (id: string, updates: Partial<DbJob>) => Promise<void>;
+  addCandidate: (candidate: Partial<DbCandidate>) => Promise<DbCandidate | null>;
+  updateCandidate: (id: string, updates: Partial<DbCandidate>) => Promise<void>;
+  deleteCandidate: (id: string) => Promise<void>;
+  addEvent: (event: Omit<DbCandidateEvent, 'id' | 'created_at'>) => Promise<void>;
+  updateCandidateStage: (id: string, newStage: CandidateStage, notes?: string, reasonCode?: string) => Promise<void>;
+  getCandidate: (id: string) => DbCandidate | undefined;
+  getJob: (id: string) => DbJob | undefined;
+  getCandidatesForJob: (jobId: string) => DbCandidate[];
+  getEventsForCandidate: (candidateId: string) => DbCandidateEvent[];
 }
 
 const JobsContext = createContext<JobsContextType | undefined>(undefined);
 
 export const JobsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [jobs, setJobs] = useState<Job[]>(() => {
-    const saved = localStorage.getItem('jobs');
-    return saved ? JSON.parse(saved) : mockJobs;
-  });
-  
-  const [candidates, setCandidates] = useState<Candidate[]>(() => {
-    const saved = localStorage.getItem('candidates');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const { user } = useAuth();
+  const [jobs, setJobs] = useState<DbJob[]>([]);
+  const [candidates, setCandidates] = useState<DbCandidate[]>([]);
+  const [events, setEvents] = useState<DbCandidateEvent[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Persist to localStorage whenever data changes
+  const refreshJobs = useCallback(async () => {
+    const { data } = await supabase.from('jobs').select('*').order('created_at', { ascending: false });
+    if (data) setJobs(data as any);
+  }, []);
+
+  const refreshCandidates = useCallback(async () => {
+    const { data } = await supabase.from('candidates').select('*').order('created_at', { ascending: false });
+    if (data) setCandidates(data as any);
+  }, []);
+
+  const refreshEvents = useCallback(async (candidateId: string) => {
+    const { data } = await supabase
+      .from('candidate_events')
+      .select('*')
+      .eq('candidate_id', candidateId)
+      .order('created_at', { ascending: false });
+    if (data) {
+      setEvents(prev => {
+        const filtered = prev.filter(e => e.candidate_id !== candidateId);
+        return [...filtered, ...(data as any)];
+      });
+    }
+  }, []);
+
   useEffect(() => {
-    localStorage.setItem('jobs', JSON.stringify(jobs));
-  }, [jobs]);
-
-  useEffect(() => {
-    localStorage.setItem('candidates', JSON.stringify(candidates));
-  }, [candidates]);
-
-  const addCandidate = (candidate: Omit<Candidate, 'id' | 'createdAt' | 'updatedAt'>) => {
-    const newCandidate: Candidate = {
-      ...candidate,
-      id: crypto.randomUUID(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
+    if (!user) {
+      setJobs([]);
+      setCandidates([]);
+      setEvents([]);
+      setLoading(false);
+      return;
+    }
+    const load = async () => {
+      setLoading(true);
+      await Promise.all([refreshJobs(), refreshCandidates()]);
+      setLoading(false);
     };
-    setCandidates(prev => [newCandidate, ...prev]);
-    return newCandidate;
+    load();
+  }, [user, refreshJobs, refreshCandidates]);
+
+  const addJob = async (job: Partial<DbJob>) => {
+    const { data, error } = await supabase.from('jobs').insert(job as any).select().single();
+    if (error) { console.error(error); return null; }
+    await refreshJobs();
+    return data as any;
   };
 
-  const updateCandidate = (id: string, updates: Partial<Candidate>) => {
-    setCandidates(prev =>
-      prev.map(candidate =>
-        candidate.id === id
-          ? { ...candidate, ...updates, updatedAt: new Date().toISOString() }
-          : candidate
-      )
-    );
+  const updateJob = async (id: string, updates: Partial<DbJob>) => {
+    await supabase.from('jobs').update(updates as any).eq('id', id);
+    await refreshJobs();
   };
 
-  const deleteCandidate = (id: string) => {
-    setCandidates(prev => prev.filter(candidate => candidate.id !== id));
+  const addCandidate = async (candidate: Partial<DbCandidate>) => {
+    const { data, error } = await supabase.from('candidates').insert({
+      ...candidate,
+      created_by: user?.id,
+    } as any).select().single();
+    if (error) { console.error(error); return null; }
+    // Log event
+    if (data) {
+      await supabase.from('candidate_events').insert({
+        candidate_id: (data as any).id,
+        actor_user_id: user?.id,
+        action_type: 'created',
+        to_stage: 'new_applicant',
+      } as any);
+    }
+    await refreshCandidates();
+    return data as any;
   };
 
-  const getCandidate = (id: string) => {
-    return candidates.find(candidate => candidate.id === id);
+  const updateCandidate = async (id: string, updates: Partial<DbCandidate>) => {
+    await supabase.from('candidates').update(updates as any).eq('id', id);
+    await refreshCandidates();
   };
 
-  const getCandidatesForJob = (jobId: string) => {
-    return candidates.filter(candidate => candidate.jobId === jobId);
+  const deleteCandidate = async (id: string) => {
+    await supabase.from('candidates').delete().eq('id', id);
+    await refreshCandidates();
   };
 
-  const getJob = (id: string) => {
-    return jobs.find(job => job.id === id);
+  const updateCandidateStage = async (
+    id: string,
+    newStage: CandidateStage,
+    notes?: string,
+    reasonCode?: string
+  ) => {
+    const candidate = candidates.find(c => c.id === id);
+    const fromStage = candidate?.stage;
+
+    await supabase.from('candidates').update({
+      stage: newStage,
+      stage_updated_at: new Date().toISOString(),
+      ...(newStage === 'hm_review' ? { hm_review_due_at: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString() } : {}),
+    } as any).eq('id', id);
+
+    await supabase.from('candidate_events').insert({
+      candidate_id: id,
+      actor_user_id: user?.id,
+      action_type: 'stage_change',
+      from_stage: fromStage,
+      to_stage: newStage,
+      reason_code: reasonCode || null,
+      notes: notes || null,
+    } as any);
+
+    await refreshCandidates();
   };
 
-  const value: JobsContextType = {
-    jobs,
-    candidates,
-    addCandidate,
-    updateCandidate,
-    deleteCandidate,
-    getCandidate,
-    getCandidatesForJob,
-    getJob,
+  const addEvent = async (event: Omit<DbCandidateEvent, 'id' | 'created_at'>) => {
+    await supabase.from('candidate_events').insert(event as any);
   };
+
+  const getCandidate = (id: string) => candidates.find(c => c.id === id);
+  const getJob = (id: string) => jobs.find(j => j.id === id);
+  const getCandidatesForJob = (jobId: string) => candidates.filter(c => c.job_id === jobId);
+  const getEventsForCandidate = (candidateId: string) => events.filter(e => e.candidate_id === candidateId);
 
   return (
-    <JobsContext.Provider value={value}>
+    <JobsContext.Provider value={{
+      jobs, candidates, events, loading,
+      refreshJobs, refreshCandidates, refreshEvents,
+      addJob, updateJob,
+      addCandidate, updateCandidate, deleteCandidate,
+      addEvent, updateCandidateStage,
+      getCandidate, getJob, getCandidatesForJob, getEventsForCandidate,
+    }}>
       {children}
     </JobsContext.Provider>
   );
@@ -125,8 +167,6 @@ export const JobsProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
 export const useJobs = () => {
   const context = useContext(JobsContext);
-  if (context === undefined) {
-    throw new Error('useJobs must be used within a JobsProvider');
-  }
+  if (!context) throw new Error('useJobs must be used within JobsProvider');
   return context;
 };
