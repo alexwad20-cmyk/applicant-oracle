@@ -1,28 +1,29 @@
 
-# Add Job Creation UI
 
-## What will be built
-A "Create Job" dialog accessible from the Dashboard and Pipeline pages, allowing HR/Admin users to create new job positions directly from the UI instead of relying on seeded data.
+# Fix: "Create Job" button not visible
 
-## Changes
+## Problem
+The "Create Job" button (and "Pipeline" and "Add Candidate" buttons) are hidden because the current user has no roles assigned. The dashboard shows "My Reviews" instead of "HR Dashboard", confirming `isHrOrAdmin` is `false`.
 
-### 1. New component: `src/components/CreateJobDialog.tsx`
-A dialog form with fields for:
-- Title (required)
-- Department
-- Location
-- Description (textarea)
+**Root cause:** The auto-assign trigger (`auto_assign_first_admin`) was created *after* the user had already signed up, so their roles were never inserted into the `user_roles` table.
 
-Uses the existing `addJob` function from `JobsContext`. Only visible to HR/Admin users.
+## Solution
 
-### 2. Add "Create Job" button to Dashboard
-In the header actions area (next to "Pipeline" and "Add Candidate" buttons), add a "Create Job" button that opens the dialog.
+### 1. Database fix: Assign roles to existing user
+Run a migration to insert `admin` and `hr` roles for the existing user (id: `212df8aa-ab94-43da-aeea-78712367b0e6`) into the `user_roles` table.
 
-### 3. Add "Create Job" button to Pipeline page
-In the pipeline header area, add the same button so jobs can be created from either page.
+```sql
+INSERT INTO public.user_roles (user_id, role)
+VALUES 
+  ('212df8aa-ab94-43da-aeea-78712367b0e6', 'admin'),
+  ('212df8aa-ab94-43da-aeea-78712367b0e6', 'hr')
+ON CONFLICT DO NOTHING;
+```
+
+### 2. No code changes needed
+The `CreateJobDialog` component and its integration into Dashboard and Pipeline are already correctly implemented. Once the roles are assigned, `isHrOrAdmin` will be `true` and all HR/Admin buttons (Pipeline, Add Candidate, Create Job) will appear.
 
 ## Technical details
-- The dialog will use existing shadcn `Dialog`, `Input`, `Textarea`, and `Button` components
-- Uses `addJob` from `JobsContext` which already handles the database insert and refresh
-- No database changes needed -- the `jobs` table schema already supports all required fields
-- Role gating: button only shown when `isHrOrAdmin` is true (matching existing pattern)
+- The `AuthContext` fetches roles from `user_roles` table via `fetchRoles()` on login
+- The `isHrOrAdmin` flag gates UI visibility in Dashboard and Pipeline
+- The auto-assign trigger will work for future first-time signups; this is a one-time fix for the existing user
