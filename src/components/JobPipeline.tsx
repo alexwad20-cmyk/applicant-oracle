@@ -8,6 +8,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { StatusBadge } from "./StatusBadge";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "./AppLayout";
+import { CreateJobDialog } from "./CreateJobDialog";
 import { DbCandidate, DbJob, CandidateStage } from "@/types/database";
 
 export const JobPipeline = () => {
@@ -69,6 +70,7 @@ export const JobPipeline = () => {
           <h1 className="text-3xl font-bold text-foreground">Job Pipeline</h1>
           <p className="text-muted-foreground mt-1">Manage candidates by job and stage</p>
         </div>
+        {isHrOrAdmin && <CreateJobDialog />}
 
         {jobs.filter(j => j.status === 'open').length === 0 ? (
           <Card className="border-0 shadow-sm">

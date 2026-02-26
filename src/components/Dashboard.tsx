@@ -8,6 +8,7 @@ import { useJobs } from "@/contexts/JobsContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { StatusBadge } from "./StatusBadge";
 import { AppLayout } from "./AppLayout";
+import { CreateJobDialog } from "./CreateJobDialog";
 
 export const Dashboard = () => {
   const { jobs, candidates, loading } = useJobs();
@@ -67,6 +68,7 @@ export const Dashboard = () => {
                   Add Candidate
                 </Button>
               </Link>
+              <CreateJobDialog />
             </div>
           )}
         </div>
