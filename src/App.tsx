@@ -10,6 +10,7 @@ import { JobPipeline } from "./components/JobPipeline";
 import { AddCandidate } from "./components/AddCandidate";
 import { ApplicantList } from "./components/ApplicantList";
 import { ApplicantDetail } from "./components/ApplicantDetail";
+import { DebugPanel } from "./components/DebugPanel";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 
@@ -32,6 +33,7 @@ const AppRoutes = () => (
     <Route path="/applicants" element={<ProtectedRoute><ApplicantList /></ProtectedRoute>} />
     <Route path="/applicants/:id" element={<ProtectedRoute><ApplicantDetail /></ProtectedRoute>} />
     <Route path="/candidates/:id" element={<ProtectedRoute><ApplicantDetail /></ProtectedRoute>} />
+    <Route path="/debug" element={<ProtectedRoute><DebugPanel /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );

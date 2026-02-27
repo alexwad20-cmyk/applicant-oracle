@@ -2,7 +2,7 @@ import { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
-import { LayoutDashboard, Briefcase, Users, Plus, LogOut, Shield } from 'lucide-react';
+import { LayoutDashboard, Briefcase, Users, Plus, LogOut, Shield, Bug, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface AppLayoutProps {
@@ -10,7 +10,7 @@ interface AppLayoutProps {
 }
 
 export const AppLayout = ({ children }: AppLayoutProps) => {
-  const { user, roles, isHrOrAdmin, signOut } = useAuth();
+  const { user, roles, isHrOrAdmin, rolesError, refreshRoles, signOut } = useAuth();
   const location = useLocation();
 
   const navItems = [
@@ -18,6 +18,7 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
     { to: '/pipeline', label: 'Pipeline', icon: Briefcase, show: true },
     { to: '/applicants', label: 'All Candidates', icon: Users, show: isHrOrAdmin },
     { to: '/add-candidate', label: 'Add Candidate', icon: Plus, show: isHrOrAdmin },
+    { to: '/debug', label: 'Debug', icon: Bug, show: true },
   ];
 
   const roleLabel = roles.includes('admin') ? 'Admin' : roles.includes('hr') ? 'HR' : roles.includes('hiring_manager') ? 'Hiring Manager' : 'No Role';
@@ -59,6 +60,15 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
           </div>
         </div>
       </header>
+      {rolesError && (
+        <div className="bg-destructive/10 border-b border-destructive/30 px-4 py-2 flex items-center gap-2 justify-center">
+          <AlertTriangle className="h-4 w-4 text-destructive" />
+          <span className="text-sm text-destructive">{rolesError}</span>
+          <Button variant="ghost" size="sm" onClick={refreshRoles} className="text-destructive underline text-xs">
+            Retry
+          </Button>
+        </div>
+      )}
       <main>{children}</main>
     </div>
   );

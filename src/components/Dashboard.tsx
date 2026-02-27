@@ -12,7 +12,7 @@ import { CreateJobDialog } from "./CreateJobDialog";
 
 export const Dashboard = () => {
   const { jobs, candidates, loading } = useJobs();
-  const { isHrOrAdmin } = useAuth();
+  const { canManageJobs, rolesLoading, rolesError, refreshRoles } = useAuth();
 
   const stats = useMemo(() => {
     const total = candidates.length;
@@ -48,13 +48,13 @@ export const Dashboard = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">
-              {isHrOrAdmin ? 'HR Dashboard' : 'My Reviews'}
+              {canManageJobs ? 'HR Dashboard' : 'My Reviews'}
             </h1>
             <p className="text-muted-foreground mt-1">
-              {isHrOrAdmin ? 'Track candidates through the hiring process' : 'Candidates pending your review'}
+              {canManageJobs ? 'Track candidates through the hiring process' : 'Candidates pending your review'}
             </p>
           </div>
-          {isHrOrAdmin && (
+          {canManageJobs && (
             <div className="flex gap-2">
               <Link to="/pipeline">
                 <Button>
@@ -70,6 +70,11 @@ export const Dashboard = () => {
               </Link>
               <CreateJobDialog />
             </div>
+          )}
+          {rolesLoading && !canManageJobs && (
+            <Button disabled variant="outline">
+              <span className="animate-spin mr-2">⏳</span> Loading permissions...
+            </Button>
           )}
         </div>
 
