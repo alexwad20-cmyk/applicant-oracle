@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Users, Clock, CheckCircle, XCircle, Briefcase, AlertTriangle } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useJobs } from "@/contexts/JobsContext";
+import { useDepartmentFilter } from "@/contexts/DepartmentFilterContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { StatusBadge } from "./StatusBadge";
 import { AppLayout } from "./AppLayout";
@@ -12,23 +13,30 @@ import { CreateJobDialog } from "./CreateJobDialog";
 
 export const Dashboard = () => {
   const { jobs, candidates, loading } = useJobs();
+  const { department: deptFilter } = useDepartmentFilter();
   const { canManageJobs, rolesLoading, rolesError, refreshRoles } = useAuth();
 
+  const filteredJobs = useMemo(() => jobs.filter(j => deptFilter === 'all' || j.department === deptFilter), [jobs, deptFilter]);
+  const filteredCandidates = useMemo(() => {
+    const jobIds = new Set(filteredJobs.map(j => j.id));
+    return candidates.filter(c => jobIds.has(c.job_id));
+  }, [candidates, filteredJobs]);
+
   const stats = useMemo(() => {
-    const total = candidates.length;
-    const newApplicants = candidates.filter(c => c.stage === 'new_applicant').length;
-    const hmReview = candidates.filter(c => c.stage === 'hm_review').length;
-    const approved = candidates.filter(c => c.stage === 'hm_approved').length;
-    const rejected = candidates.filter(c => c.stage === 'hm_rejected').length;
-    const overdue = candidates.filter(c =>
+    const total = filteredCandidates.length;
+    const newApplicants = filteredCandidates.filter(c => c.stage === 'new_applicant').length;
+    const hmReview = filteredCandidates.filter(c => c.stage === 'hm_review').length;
+    const approved = filteredCandidates.filter(c => c.stage === 'hm_approved').length;
+    const rejected = filteredCandidates.filter(c => c.stage === 'hm_rejected').length;
+    const overdue = filteredCandidates.filter(c =>
       c.stage === 'hm_review' && c.hm_review_due_at && new Date(c.hm_review_due_at) < new Date()
     ).length;
     return { total, newApplicants, hmReview, approved, rejected, overdue };
-  }, [candidates]);
+  }, [filteredCandidates]);
 
   const recentCandidates = useMemo(() =>
-    [...candidates].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5),
-    [candidates]
+    [...filteredCandidates].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5),
+    [filteredCandidates]
   );
 
   if (loading) {
@@ -177,11 +185,11 @@ export const Dashboard = () => {
               <CardTitle className="text-lg">Open Positions</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {jobs.filter(j => j.status === 'open').length === 0 ? (
+              {filteredJobs.filter(j => j.status === 'open').length === 0 ? (
                 <p className="text-muted-foreground text-center py-8">No open positions</p>
               ) : (
-                jobs.filter(j => j.status === 'open').map(job => {
-                  const count = candidates.filter(c => c.job_id === job.id).length;
+                filteredJobs.filter(j => j.status === 'open').map(job => {
+                  const count = filteredCandidates.filter(c => c.job_id === job.id).length;
                   return (
                     <div key={job.id} className="p-3 rounded-lg bg-muted/50">
                       <div className="flex justify-between items-start">

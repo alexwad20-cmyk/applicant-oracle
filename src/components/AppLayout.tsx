@@ -1,8 +1,10 @@
 import { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
-import { LayoutDashboard, Briefcase, Users, Plus, LogOut, Shield, Bug, AlertTriangle } from 'lucide-react';
+import { useDepartmentFilter } from '@/contexts/DepartmentFilterContext';
+import { LayoutDashboard, Briefcase, Users, Plus, LogOut, Shield, Bug, AlertTriangle, Building2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface AppLayoutProps {
@@ -11,6 +13,7 @@ interface AppLayoutProps {
 
 export const AppLayout = ({ children }: AppLayoutProps) => {
   const { user, roles, isHrOrAdmin, rolesError, refreshRoles, signOut } = useAuth();
+  const { department, setDepartment, departments } = useDepartmentFilter();
   const location = useLocation();
 
   const navItems = [
@@ -49,6 +52,20 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
             </nav>
           </div>
           <div className="flex items-center gap-3">
+            {departments.length > 0 && (
+              <Select value={department} onValueChange={setDepartment}>
+                <SelectTrigger className="w-[140px] h-8 text-xs">
+                  <Building2 className="h-3 w-3 mr-1" />
+                  <SelectValue placeholder="Department" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Departments</SelectItem>
+                  {departments.map(d => (
+                    <SelectItem key={d} value={d}>{d}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <Badge variant="outline" className="text-xs">
               <Shield className="h-3 w-3 mr-1" />
               {roleLabel}

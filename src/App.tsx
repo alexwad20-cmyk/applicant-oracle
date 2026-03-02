@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { JobsProvider } from "./contexts/JobsContext";
+import { DepartmentFilterProvider } from "./contexts/DepartmentFilterContext";
 import { Dashboard } from "./components/Dashboard";
 import { JobPipeline } from "./components/JobPipeline";
 import { AddCandidate } from "./components/AddCandidate";
@@ -42,13 +43,15 @@ const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
       <JobsProvider>
-        <TooltipProvider>
-          <Toaster />
-          <Sonner />
-          <BrowserRouter>
-            <AppRoutes />
-          </BrowserRouter>
-        </TooltipProvider>
+        <DepartmentFilterProvider>
+          <TooltipProvider>
+            <Toaster />
+            <Sonner />
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
+          </TooltipProvider>
+        </DepartmentFilterProvider>
       </JobsProvider>
     </AuthProvider>
   </QueryClientProvider>

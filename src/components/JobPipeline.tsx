@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Users, Mail, Eye } from "lucide-react";
 import { useJobs } from "@/contexts/JobsContext";
+import { useDepartmentFilter } from "@/contexts/DepartmentFilterContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { StatusBadge } from "./StatusBadge";
 import { useToast } from "@/hooks/use-toast";
@@ -14,8 +15,11 @@ import { DbCandidate, DbJob, CandidateStage } from "@/types/database";
 export const JobPipeline = () => {
   const navigate = useNavigate();
   const { jobs, candidates, getCandidatesForJob, updateCandidateStage } = useJobs();
+  const { department: deptFilter } = useDepartmentFilter();
   const { isHrOrAdmin, canManageJobs } = useAuth();
   const { toast } = useToast();
+
+  const filteredJobs = jobs.filter(j => j.status === 'open' && (deptFilter === 'all' || j.department === deptFilter));
 
   const handleSendForReview = async (candidate: DbCandidate) => {
     await updateCandidateStage(candidate.id, 'hm_review', 'Sent to hiring manager for review');
@@ -72,15 +76,15 @@ export const JobPipeline = () => {
         </div>
         {canManageJobs && <CreateJobDialog />}
 
-        {jobs.filter(j => j.status === 'open').length === 0 ? (
+        {filteredJobs.length === 0 ? (
           <Card className="border-0 shadow-sm">
             <CardContent className="text-center py-12">
-              <p className="text-muted-foreground">No open positions. Create a job first.</p>
+              <p className="text-muted-foreground">No open positions{deptFilter !== 'all' ? ` in ${deptFilter}` : ''}. Create a job first.</p>
             </CardContent>
           </Card>
         ) : (
           <div className="space-y-8">
-            {jobs.filter(j => j.status === 'open').map(job => {
+            {filteredJobs.map(job => {
               const jobCandidates = getCandidatesForJob(job.id);
               return (
                 <Card key={job.id} className="border-0 shadow-sm">
