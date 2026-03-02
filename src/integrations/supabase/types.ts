@@ -70,8 +70,10 @@ export type Database = {
           hm_review_due_at: string | null
           id: string
           job_id: string
+          last_reminder_sent_at: string | null
           notes: string | null
           phone: string
+          reminder_count: number
           source: Database["public"]["Enums"]["candidate_source"]
           stage: Database["public"]["Enums"]["candidate_stage"]
           stage_updated_at: string
@@ -89,8 +91,10 @@ export type Database = {
           hm_review_due_at?: string | null
           id?: string
           job_id: string
+          last_reminder_sent_at?: string | null
           notes?: string | null
           phone?: string
+          reminder_count?: number
           source?: Database["public"]["Enums"]["candidate_source"]
           stage?: Database["public"]["Enums"]["candidate_stage"]
           stage_updated_at?: string
@@ -108,8 +112,10 @@ export type Database = {
           hm_review_due_at?: string | null
           id?: string
           job_id?: string
+          last_reminder_sent_at?: string | null
           notes?: string | null
           phone?: string
+          reminder_count?: number
           source?: Database["public"]["Enums"]["candidate_source"]
           stage?: Database["public"]["Enums"]["candidate_stage"]
           stage_updated_at?: string

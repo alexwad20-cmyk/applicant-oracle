@@ -9,25 +9,28 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Search, Filter, Eye, Plus } from "lucide-react";
 import { StatusBadge } from "./StatusBadge";
 import { useJobs } from "@/contexts/JobsContext";
+import { useDepartmentFilter } from "@/contexts/DepartmentFilterContext";
 import { AppLayout } from "./AppLayout";
 import { STAGE_LABELS, CandidateStage } from "@/types/database";
 
 export const ApplicantList = () => {
   const navigate = useNavigate();
   const { candidates, jobs } = useJobs();
+  const { department: deptFilter } = useDepartmentFilter();
   const [searchTerm, setSearchTerm] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("all");
 
   const filtered = useMemo(() => {
     return candidates.filter(c => {
       const job = jobs.find(j => j.id === c.job_id);
+      if (deptFilter !== 'all' && job?.department !== deptFilter) return false;
       const matchesSearch = c.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         c.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (job?.title || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStage = stageFilter === "all" || c.stage === stageFilter;
       return matchesSearch && matchesStage;
     });
-  }, [candidates, jobs, searchTerm, stageFilter]);
+  }, [candidates, jobs, searchTerm, stageFilter, deptFilter]);
 
   return (
     <AppLayout>
@@ -75,8 +78,9 @@ export const ApplicantList = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Name</TableHead>
+                     <TableHead>Name</TableHead>
                     <TableHead>Job</TableHead>
+                    <TableHead>Department</TableHead>
                     <TableHead>Source</TableHead>
                     <TableHead>Stage</TableHead>
                     <TableHead>Visa</TableHead>
@@ -90,6 +94,11 @@ export const ApplicantList = () => {
                       <TableRow key={c.id}>
                         <TableCell className="font-medium">{c.full_name}</TableCell>
                         <TableCell>{job?.title || '—'}</TableCell>
+                        <TableCell>
+                          {job?.department ? (
+                            <Badge variant="outline" className="text-xs">{job.department}</Badge>
+                          ) : '—'}
+                        </TableCell>
                         <TableCell className="capitalize">{c.source}</TableCell>
                         <TableCell><StatusBadge stage={c.stage} /></TableCell>
                         <TableCell>
