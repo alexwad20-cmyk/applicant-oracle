@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { DndContext, DragEndEvent, DragOverlay, DragStartEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { DndContext, DragEndEvent, DragStartEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { useJobs } from "@/contexts/JobsContext";
 import { useDepartmentFilter } from "@/contexts/DepartmentFilterContext";
 import { useAuth } from "@/contexts/AuthContext";
