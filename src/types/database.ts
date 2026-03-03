@@ -76,6 +76,8 @@ export interface DbCandidate {
   stage: CandidateStage;
   stage_updated_at: string;
   hm_review_due_at: string | null;
+  last_reminder_sent_at: string | null;
+  reminder_count: number;
   cv_file_path: string | null;
   notes: string | null;
   duplicate_of_candidate_id: string | null;
