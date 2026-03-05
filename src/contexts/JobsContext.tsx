@@ -140,6 +140,22 @@ export const JobsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } as any);
 
     await refreshCandidates();
+
+    // Notify admins on HM decisions
+    if (fromStage === 'hm_review' && (newStage === 'hm_approved' || newStage === 'hm_rejected')) {
+      try {
+        await supabase.functions.invoke('notify-admin-review-complete', {
+          body: {
+            candidate_id: id,
+            decision: newStage === 'hm_approved' ? 'approved' : 'rejected',
+            reason: reasonCode || null,
+            notes: notes || null,
+          },
+        });
+      } catch (e) {
+        console.warn('Failed to notify admins:', e);
+      }
+    }
   };
 
   const addEvent = async (event: Omit<DbCandidateEvent, 'id' | 'created_at'>) => {

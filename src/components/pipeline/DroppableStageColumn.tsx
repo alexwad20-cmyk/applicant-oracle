@@ -11,9 +11,11 @@ interface StageConfig {
 interface Props {
   stage: StageConfig;
   candidates: DbCandidate[];
+  selectedIds?: Set<string>;
+  onToggleSelect?: (id: string) => void;
 }
 
-export const DroppableStageColumn = ({ stage, candidates }: Props) => {
+export const DroppableStageColumn = ({ stage, candidates, selectedIds, onToggleSelect }: Props) => {
   const { isOver, setNodeRef } = useDroppable({
     id: stage.key,
     data: { stage: stage.key },
@@ -39,7 +41,12 @@ export const DroppableStageColumn = ({ stage, candidates }: Props) => {
           </p>
         ) : (
           candidates.map((c) => (
-            <DraggableCandidateCard key={c.id} candidate={c} />
+            <DraggableCandidateCard
+              key={c.id}
+              candidate={c}
+              selected={selectedIds?.has(c.id) ?? false}
+              onToggleSelect={onToggleSelect}
+            />
           ))
         )}
       </div>

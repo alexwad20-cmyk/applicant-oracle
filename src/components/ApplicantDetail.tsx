@@ -14,6 +14,9 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "./AppLayout";
 import { STAGE_LABELS, REJECTION_REASON_LABELS, CandidateStage, RejectionReason, DbCandidateEvent } from "@/types/database";
+import { CommentPanel } from "./comments/CommentPanel";
+import { ShareWithReviewer } from "./comments/ShareWithReviewer";
+import { GdprControls } from "./candidate/GdprControls";
 import {
   Dialog,
   DialogContent,
@@ -98,7 +101,10 @@ export const ApplicantDetail = () => {
             <h1 className="text-3xl font-bold">{candidate.full_name}</h1>
             <p className="text-muted-foreground">{job?.title || 'Unknown Position'} • {job?.department}</p>
           </div>
-          <StatusBadge stage={candidate.stage} />
+          <div className="flex items-center gap-3">
+            <StatusBadge stage={candidate.stage} />
+            {isHrOrAdmin && <ShareWithReviewer candidateId={candidate.id} />}
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -195,6 +201,13 @@ export const ApplicantDetail = () => {
                   )}
                 </div>
               )}
+
+              {isHrOrAdmin && (
+                <div className="pt-3 border-t">
+                  <p className="text-xs text-muted-foreground mb-2">GDPR Controls</p>
+                  <GdprControls candidate={candidate} />
+                </div>
+              )}
             </CardContent>
           </Card>
 
@@ -241,6 +254,11 @@ export const ApplicantDetail = () => {
               )}
             </CardContent>
           </Card>
+
+          {/* Comments */}
+          <div className="lg:col-span-2">
+            <CommentPanel candidateId={candidate.id} />
+          </div>
         </div>
       </div>
     </AppLayout>

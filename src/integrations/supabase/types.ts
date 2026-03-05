@@ -14,6 +14,77 @@ export type Database = {
   }
   public: {
     Tables: {
+      allowed_users: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          invited_by: string | null
+          notes: string | null
+          role_to_assign: Database["public"]["Enums"]["app_role"]
+          used_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          invited_by?: string | null
+          notes?: string | null
+          role_to_assign?: Database["public"]["Enums"]["app_role"]
+          used_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          invited_by?: string | null
+          notes?: string | null
+          role_to_assign?: Database["public"]["Enums"]["app_role"]
+          used_at?: string | null
+        }
+        Relationships: []
+      }
+      candidate_comments: {
+        Row: {
+          author_email: string | null
+          author_user_id: string | null
+          body: string
+          candidate_id: string
+          created_at: string
+          id: string
+          source: string
+          visibility: string
+        }
+        Insert: {
+          author_email?: string | null
+          author_user_id?: string | null
+          body: string
+          candidate_id: string
+          created_at?: string
+          id?: string
+          source?: string
+          visibility?: string
+        }
+        Update: {
+          author_email?: string | null
+          author_user_id?: string | null
+          body?: string
+          candidate_id?: string
+          created_at?: string
+          id?: string
+          source?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_comments_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       candidate_events: {
         Row: {
           action_type: string
@@ -51,6 +122,38 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "candidate_events_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      candidate_reviewer_access: {
+        Row: {
+          candidate_id: string
+          created_at: string
+          granted_by: string
+          id: string
+          reviewer_user_id: string
+        }
+        Insert: {
+          candidate_id: string
+          created_at?: string
+          granted_by: string
+          id?: string
+          reviewer_user_id: string
+        }
+        Update: {
+          candidate_id?: string
+          created_at?: string
+          granted_by?: string
+          id?: string
+          reviewer_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_reviewer_access_candidate_id_fkey"
             columns: ["candidate_id"]
             isOneToOne: false
             referencedRelation: "candidates"
@@ -138,6 +241,69 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      data_retention_settings: {
+        Row: {
+          created_at: string
+          id: string
+          retention_days: number
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          retention_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          retention_days?: number
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
+      email_templates: {
+        Row: {
+          created_at: string
+          html_template: string
+          id: string
+          is_active: boolean
+          key: string
+          name: string
+          subject_template: string
+          text_template: string | null
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          html_template: string
+          id?: string
+          is_active?: boolean
+          key: string
+          name: string
+          subject_template: string
+          text_template?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          html_template?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          name?: string
+          subject_template?: string
+          text_template?: string | null
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       jobs: {
         Row: {
@@ -266,6 +432,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_user_allowed: { Args: { check_email: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -274,9 +441,13 @@ export type Database = {
         Returns: boolean
       }
       is_hr_or_admin: { Args: { _user_id: string }; Returns: boolean }
+      is_reviewer_for_candidate: {
+        Args: { _candidate_id: string; _user_id: string }
+        Returns: boolean
+      }
     }
     Enums: {
-      app_role: "admin" | "hr" | "hiring_manager"
+      app_role: "admin" | "hr" | "hiring_manager" | "reviewer"
       candidate_source: "direct" | "agency" | "referral"
       candidate_stage:
         | "new_applicant"
@@ -421,7 +592,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "hr", "hiring_manager"],
+      app_role: ["admin", "hr", "hiring_manager", "reviewer"],
       candidate_source: ["direct", "agency", "referral"],
       candidate_stage: [
         "new_applicant",
