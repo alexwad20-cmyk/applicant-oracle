@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 import { Briefcase } from 'lucide-react';
 
 const Auth = () => {
@@ -16,6 +17,7 @@ const Auth = () => {
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [notAllowed, setNotAllowed] = useState(false);
 
   if (loading) {
     return (
@@ -25,20 +27,78 @@ const Auth = () => {
     );
   }
 
-  if (user) return <Navigate to="/" replace />;
+  if (user && !notAllowed) return <Navigate to="/" replace />;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    setNotAllowed(false);
 
-    const { error } = isSignUp
-      ? await signUp(email, password, fullName)
-      : await signIn(email, password);
+    if (isSignUp) {
+      // Check allowlist before signup
+      const { data: allowed } = await supabase.rpc('check_user_allowed', {
+        check_email: email,
+      } as any);
 
-    if (error) {
-      toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } else if (isSignUp) {
-      toast({ title: 'Account created', description: 'You can now sign in.' });
+      if (!allowed) {
+        toast({
+          title: 'Access not approved',
+          description: 'Your email is not in the approved users list. Please contact an administrator.',
+          variant: 'destructive',
+        });
+        setSubmitting(false);
+        return;
+      }
+
+      const { error } = await signUp(email, password, fullName);
+      if (error) {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      } else {
+        toast({ title: 'Account created', description: 'You can now sign in.' });
+      }
+    } else {
+      const { error } = await signIn(email, password);
+      if (error) {
+        toast({ title: 'Error', description: error.message, variant: 'destructive' });
+      } else {
+        // After sign-in, check allowlist and auto-assign role if first login
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const { data: allowed } = await supabase.rpc('check_user_allowed', {
+            check_email: session.user.email || '',
+          } as any);
+
+          if (!allowed) {
+            setNotAllowed(true);
+            toast({
+              title: 'Access not approved',
+              description: 'Your email is not in the approved users list.',
+              variant: 'destructive',
+            });
+            await supabase.auth.signOut();
+            setSubmitting(false);
+            return;
+          }
+
+          // Auto-assign role on first login
+          const { data: allowEntry } = await supabase
+            .from('allowed_users')
+            .select('id, role_to_assign, used_at')
+            .eq('email', (session.user.email || '').toLowerCase())
+            .single();
+
+          if (allowEntry && !allowEntry.used_at) {
+            await supabase.from('user_roles').insert({
+              user_id: session.user.id,
+              role: allowEntry.role_to_assign,
+            } as any);
+            await supabase
+              .from('allowed_users')
+              .update({ used_at: new Date().toISOString() } as any)
+              .eq('id', allowEntry.id);
+          }
+        }
+      }
     }
     setSubmitting(false);
   };
@@ -99,7 +159,7 @@ const Auth = () => {
           <div className="mt-4 text-center">
             <button
               type="button"
-              onClick={() => setIsSignUp(!isSignUp)}
+              onClick={() => { setIsSignUp(!isSignUp); setNotAllowed(false); }}
               className="text-sm text-primary hover:underline"
             >
               {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}

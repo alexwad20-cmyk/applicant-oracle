@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DndContext, DragEndEvent, DragStartEvent, PointerSensor, useSensor, useSensors } from "@dnd-kit/core";
 import { useJobs } from "@/contexts/JobsContext";
 import { useDepartmentFilter } from "@/contexts/DepartmentFilterContext";
@@ -10,6 +11,7 @@ import { AppLayout } from "./AppLayout";
 import { CreateJobDialog } from "./CreateJobDialog";
 import { DroppableStageColumn } from "./pipeline/DroppableStageColumn";
 import { RejectionReasonModal } from "./pipeline/RejectionReasonModal";
+import { BulkActionsBar } from "./pipeline/BulkActionsBar";
 import { DbCandidate, CandidateStage, RejectionReason } from "@/types/database";
 
 const stages: { key: CandidateStage; label: string; color: string }[] = [
@@ -30,6 +32,7 @@ export const JobPipeline = () => {
     candidate: DbCandidate;
     toStage: CandidateStage;
   } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
@@ -39,12 +42,21 @@ export const JobPipeline = () => {
     (j) => j.status === "open" && (deptFilter === "all" || j.department === deptFilter)
   );
 
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const selectedCandidates = candidates.filter(c => selectedIds.has(c.id));
+
   const canMoveCandidate = useCallback(
     (candidate: DbCandidate, toStage: CandidateStage): boolean => {
       if (candidate.stage === toStage) return false;
       if (isHrOrAdmin) return true;
       if (isHiringManager) {
-        // HM can only move from hm_review to approved/rejected on their own jobs
         const job = jobs.find((j) => j.id === candidate.job_id);
         if (!job || job.hiring_manager_user_id !== user?.id) return false;
         if (candidate.stage !== "hm_review") return false;
@@ -66,7 +78,6 @@ export const JobPipeline = () => {
     if (!over) return;
 
     const candidate = active.data.current?.candidate as DbCandidate;
-    // Droppable IDs are formatted as "jobId::stage"
     const overId = String(over.id);
     const toStage = (overId.includes("::") ? overId.split("::")[1] : overId) as CandidateStage;
 
@@ -77,13 +88,11 @@ export const JobPipeline = () => {
       return;
     }
 
-    // If rejecting, show modal for reason
     if (toStage === "hm_rejected") {
       setPendingDrop({ candidate, toStage });
       return;
     }
 
-    // Otherwise execute immediately
     try {
       const notes = toStage === "hm_review" ? "Sent to hiring manager for review" : undefined;
       await updateCandidateStage(candidate.id, toStage, notes);
@@ -109,7 +118,7 @@ export const JobPipeline = () => {
       <div className="max-w-7xl mx-auto p-6">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-foreground">Job Pipeline</h1>
-          <p className="text-muted-foreground mt-1">Drag candidates between stages</p>
+          <p className="text-muted-foreground mt-1">Drag candidates between stages. Select with checkboxes for bulk actions.</p>
         </div>
         {canManageJobs && <CreateJobDialog />}
 
@@ -148,6 +157,8 @@ export const JobPipeline = () => {
                               key={`${job.id}-${stage.key}`}
                               stage={{ ...stage, key: `${job.id}::${stage.key}` as any }}
                               candidates={stageCandidates}
+                              selectedIds={selectedIds}
+                              onToggleSelect={toggleSelect}
                             />
                           );
                         })}
@@ -159,6 +170,8 @@ export const JobPipeline = () => {
             </div>
           </DndContext>
         )}
+
+        <BulkActionsBar selected={selectedCandidates} onClear={() => setSelectedIds(new Set())} />
 
         <RejectionReasonModal
           open={!!pendingDrop}

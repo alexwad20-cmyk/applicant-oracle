@@ -13,6 +13,9 @@ import { ApplicantList } from "./components/ApplicantList";
 import { ApplicantDetail } from "./components/ApplicantDetail";
 import { DebugPanel } from "./components/DebugPanel";
 import Auth from "./pages/Auth";
+import InviteUsers from "./pages/InviteUsers";
+import EmailTemplates from "./pages/EmailTemplates";
+import ReviewToken from "./pages/ReviewToken";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +30,7 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
 const AppRoutes = () => (
   <Routes>
     <Route path="/auth" element={<Auth />} />
+    <Route path="/review/:token" element={<ReviewToken />} />
     <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
     <Route path="/pipeline" element={<ProtectedRoute><JobPipeline /></ProtectedRoute>} />
     <Route path="/add-candidate" element={<ProtectedRoute><AddCandidate /></ProtectedRoute>} />
@@ -34,6 +38,8 @@ const AppRoutes = () => (
     <Route path="/applicants" element={<ProtectedRoute><ApplicantList /></ProtectedRoute>} />
     <Route path="/applicants/:id" element={<ProtectedRoute><ApplicantDetail /></ProtectedRoute>} />
     <Route path="/candidates/:id" element={<ProtectedRoute><ApplicantDetail /></ProtectedRoute>} />
+    <Route path="/settings/invite" element={<ProtectedRoute><InviteUsers /></ProtectedRoute>} />
+    <Route path="/settings/email-templates" element={<ProtectedRoute><EmailTemplates /></ProtectedRoute>} />
     <Route path="/debug" element={<ProtectedRoute><DebugPanel /></ProtectedRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>

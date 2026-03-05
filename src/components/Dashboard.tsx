@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Users, Clock, CheckCircle, XCircle, Briefcase, AlertTriangle } from "lucide-react";
+import { Plus, Users, Clock, CheckCircle, XCircle, Briefcase, AlertTriangle, Bell } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useJobs } from "@/contexts/JobsContext";
 import { useDepartmentFilter } from "@/contexts/DepartmentFilterContext";
@@ -10,11 +10,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import { StatusBadge } from "./StatusBadge";
 import { AppLayout } from "./AppLayout";
 import { CreateJobDialog } from "./CreateJobDialog";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 export const Dashboard = () => {
-  const { jobs, candidates, loading } = useJobs();
+  const { jobs, candidates, loading, refreshCandidates } = useJobs();
   const { department: deptFilter } = useDepartmentFilter();
-  const { canManageJobs, rolesLoading, rolesError, refreshRoles } = useAuth();
+  const { canManageJobs, rolesLoading, rolesError, refreshRoles, isHrOrAdmin } = useAuth();
+  const { toast } = useToast();
+  const [sendingReminders, setSendingReminders] = useState(false);
 
   const filteredJobs = useMemo(() => jobs.filter(j => deptFilter === 'all' || j.department === deptFilter), [jobs, deptFilter]);
   const filteredCandidates = useMemo(() => {
@@ -38,6 +42,19 @@ export const Dashboard = () => {
     [...filteredCandidates].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).slice(0, 5),
     [filteredCandidates]
   );
+
+  const handleRunReminders = async () => {
+    setSendingReminders(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-review-reminders');
+      if (error) throw error;
+      toast({ title: "Reminders sent", description: `${data?.reminders_sent || 0} reminder(s) sent.` });
+      await refreshCandidates();
+    } catch {
+      toast({ title: "Failed to send reminders", variant: "destructive" });
+    }
+    setSendingReminders(false);
+  };
 
   if (loading) {
     return (
@@ -143,6 +160,18 @@ export const Dashboard = () => {
               <p className="text-sm font-medium text-destructive">
                 {stats.overdue} candidate{stats.overdue > 1 ? 's' : ''} overdue for HM review
               </p>
+              {isHrOrAdmin && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleRunReminders}
+                  disabled={sendingReminders}
+                  className="ml-auto"
+                >
+                  <Bell className="h-3.5 w-3.5 mr-1.5" />
+                  {sendingReminders ? "Sending..." : "Run Reminders Now"}
+                </Button>
+              )}
             </CardContent>
           </Card>
         )}

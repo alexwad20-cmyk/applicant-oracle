@@ -1,6 +1,6 @@
 // Manual DB types matching our schema (until auto-generated types update)
 
-export type AppRole = 'admin' | 'hr' | 'hiring_manager';
+export type AppRole = 'admin' | 'hr' | 'hiring_manager' | 'reviewer';
 export type CandidateStage = 'new_applicant' | 'hm_review' | 'hm_approved' | 'hm_rejected';
 export type CandidateSource = 'direct' | 'agency' | 'referral';
 export type RejectionReason =

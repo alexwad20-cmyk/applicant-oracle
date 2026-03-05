@@ -3,15 +3,18 @@ import { CSS } from "@dnd-kit/utilities";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Eye } from "lucide-react";
 import { StatusBadge } from "@/components/StatusBadge";
 import { DbCandidate } from "@/types/database";
 
 interface Props {
   candidate: DbCandidate;
+  selected?: boolean;
+  onToggleSelect?: (id: string) => void;
 }
 
-export const DraggableCandidateCard = ({ candidate }: Props) => {
+export const DraggableCandidateCard = ({ candidate, selected, onToggleSelect }: Props) => {
   const navigate = useNavigate();
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: candidate.id,
@@ -37,12 +40,22 @@ export const DraggableCandidateCard = ({ candidate }: Props) => {
       {...attributes}
       className={`p-3 border rounded-lg bg-card cursor-grab active:cursor-grabbing transition-shadow ${
         isDragging ? "shadow-lg ring-2 ring-primary/40" : ""
-      } ${isOverdue ? "border-destructive/50" : ""}`}
+      } ${isOverdue ? "border-destructive/50" : ""} ${selected ? "ring-2 ring-primary" : ""}`}
     >
       <div className="flex justify-between items-start mb-2">
-        <div className="min-w-0">
-          <h4 className="font-medium text-sm truncate">{candidate.full_name}</h4>
-          <p className="text-xs text-muted-foreground truncate">{candidate.email}</p>
+        <div className="flex items-start gap-2 min-w-0">
+          {onToggleSelect && (
+            <Checkbox
+              checked={selected}
+              onCheckedChange={() => onToggleSelect(candidate.id)}
+              onPointerDown={(e) => e.stopPropagation()}
+              className="mt-0.5"
+            />
+          )}
+          <div className="min-w-0">
+            <h4 className="font-medium text-sm truncate">{candidate.full_name}</h4>
+            <p className="text-xs text-muted-foreground truncate">{candidate.email}</p>
+          </div>
         </div>
         <StatusBadge stage={candidate.stage} />
       </div>

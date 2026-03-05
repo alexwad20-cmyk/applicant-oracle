@@ -1,1 +1,13 @@
 project_id = "itptteaaafmlqcxztinx"
+
+[functions.send-review-reminders]
+verify_jwt = false
+
+[functions.notify-admin-review-complete]
+verify_jwt = false
+
+[functions.validate-review-token]
+verify_jwt = false
+
+[functions.add-comment-via-token]
+verify_jwt = false

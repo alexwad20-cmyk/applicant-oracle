@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
 import { useDepartmentFilter } from '@/contexts/DepartmentFilterContext';
-import { LayoutDashboard, Briefcase, Users, Plus, LogOut, Shield, Bug, AlertTriangle, Building2 } from 'lucide-react';
+import { LayoutDashboard, Briefcase, Users, Plus, LogOut, Shield, Bug, AlertTriangle, Building2, UserPlus, Mail, Settings } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
 interface AppLayoutProps {
@@ -21,6 +21,8 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
     { to: '/pipeline', label: 'Pipeline', icon: Briefcase, show: true },
     { to: '/applicants', label: 'All Candidates', icon: Users, show: isHrOrAdmin },
     { to: '/add-candidate', label: 'Add Candidate', icon: Plus, show: isHrOrAdmin },
+    { to: '/settings/invite', label: 'Invite Users', icon: UserPlus, show: isHrOrAdmin },
+    { to: '/settings/email-templates', label: 'Email Templates', icon: Mail, show: isHrOrAdmin },
     { to: '/debug', label: 'Debug', icon: Bug, show: true },
   ];
 
