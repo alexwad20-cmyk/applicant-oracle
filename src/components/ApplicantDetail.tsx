@@ -17,6 +17,7 @@ import { STAGE_LABELS, REJECTION_REASON_LABELS, CandidateStage, RejectionReason,
 import { CommentPanel } from "./comments/CommentPanel";
 import { ShareWithReviewer } from "./comments/ShareWithReviewer";
 import { GdprControls } from "./candidate/GdprControls";
+import { SendForReviewDialog } from "./candidate/SendForReviewDialog";
 import {
   Dialog,
   DialogContent,
