@@ -238,12 +238,17 @@ export const Dashboard = () => {
               ) : (
                 filteredJobs.filter(j => j.status === 'open').map(job => {
                   const count = filteredCandidates.filter(c => c.job_id === job.id).length;
+                  const hmProfile = job.hiring_manager_user_id ? hmProfiles[job.hiring_manager_user_id] : null;
+                  const hmDisplay = hmProfile ? (hmProfile.full_name || hmProfile.email) : null;
                   return (
                     <div key={job.id} className="p-3 rounded-lg bg-muted/50">
                       <div className="flex justify-between items-start">
                         <div>
                           <p className="font-medium text-sm">{job.title}</p>
-                          <p className="text-xs text-muted-foreground">{job.department} • {job.location}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {job.department} • {job.location}
+                            {hmDisplay && ` • HM: ${hmDisplay}`}
+                          </p>
                         </div>
                         <Badge variant="outline" className="text-xs">
                           {count} candidates
