@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,8 @@ import { CreateJobDialog } from "./CreateJobDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+interface ProfileMap { [userId: string]: { full_name: string; email: string } }
+
 export const Dashboard = () => {
   const { jobs, candidates, loading, refreshCandidates } = useJobs();
   const { department: deptFilter } = useDepartmentFilter();
@@ -21,6 +23,21 @@ export const Dashboard = () => {
   const { effectiveCanManageJobs, effectiveIsHrOrAdmin, realIsHrOrAdmin, isImpersonating } = useEffectivePermissions();
   const { toast } = useToast();
   const [sendingReminders, setSendingReminders] = useState(false);
+  const [hmProfiles, setHmProfiles] = useState<ProfileMap>({});
+
+  // Fetch HM profiles for job cards
+  useEffect(() => {
+    const hmIds = [...new Set(jobs.map(j => j.hiring_manager_user_id).filter(Boolean))] as string[];
+    if (hmIds.length === 0) return;
+    supabase.from("profiles").select("user_id, full_name, email").in("user_id", hmIds)
+      .then(({ data }) => {
+        if (data) {
+          const map: ProfileMap = {};
+          data.forEach((p: any) => { map[p.user_id] = { full_name: p.full_name, email: p.email }; });
+          setHmProfiles(map);
+        }
+      });
+  }, [jobs]);
 
   const filteredJobs = useMemo(() => jobs.filter(j => deptFilter === 'all' || j.department === deptFilter), [jobs, deptFilter]);
   const filteredCandidates = useMemo(() => {
@@ -221,12 +238,17 @@ export const Dashboard = () => {
               ) : (
                 filteredJobs.filter(j => j.status === 'open').map(job => {
                   const count = filteredCandidates.filter(c => c.job_id === job.id).length;
+                  const hmProfile = job.hiring_manager_user_id ? hmProfiles[job.hiring_manager_user_id] : null;
+                  const hmDisplay = hmProfile ? (hmProfile.full_name || hmProfile.email) : null;
                   return (
                     <div key={job.id} className="p-3 rounded-lg bg-muted/50">
                       <div className="flex justify-between items-start">
                         <div>
                           <p className="font-medium text-sm">{job.title}</p>
-                          <p className="text-xs text-muted-foreground">{job.department} • {job.location}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {job.department} • {job.location}
+                            {hmDisplay && ` • HM: ${hmDisplay}`}
+                          </p>
                         </div>
                         <Badge variant="outline" className="text-xs">
                           {count} candidates

@@ -11,11 +11,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEffectivePermissions } from "@/hooks/useEffectivePermissions";
 import { useToast } from "@/hooks/use-toast";
 import { AppLayout } from "@/components/AppLayout";
-import { UserPlus, Trash2 } from "lucide-react";
+import { UserPlus, Trash2, Pencil, Check, X } from "lucide-react";
 
 interface AllowedUser {
   id: string;
   email: string;
+  full_name: string | null;
   role_to_assign: string;
   notes: string | null;
   used_at: string | null;
@@ -23,14 +24,17 @@ interface AllowedUser {
 }
 
 const InviteUsers = () => {
-  const { user, isHrOrAdmin } = useAuth();
+  const { user } = useAuth();
   const { effectiveIsHrOrAdmin, realIsHrOrAdmin, isImpersonating } = useEffectivePermissions();
   const { toast } = useToast();
   const [allowedUsers, setAllowedUsers] = useState<AllowedUser[]>([]);
   const [email, setEmail] = useState("");
+  const [fullName, setFullName] = useState("");
   const [role, setRole] = useState("hiring_manager");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
 
   const fetchAllowed = async () => {
     const { data } = await supabase
@@ -40,16 +44,19 @@ const InviteUsers = () => {
     if (data) setAllowedUsers(data as any);
   };
 
-  useEffect(() => {
-    fetchAllowed();
-  }, []);
+  useEffect(() => { fetchAllowed(); }, []);
 
   const handleInvite = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim()) return;
+    if (!fullName.trim() && (role === "hiring_manager" || role === "hr" || role === "admin")) {
+      toast({ title: "Full name required", description: "Please enter the user's full name.", variant: "destructive" });
+      return;
+    }
     setSubmitting(true);
     const { error } = await supabase.from("allowed_users").insert({
       email: email.toLowerCase().trim(),
+      full_name: fullName.trim() || null,
       role_to_assign: role,
       invited_by: user?.id,
       notes: notes || null,
@@ -61,8 +68,9 @@ const InviteUsers = () => {
         toast({ title: "Failed to invite", description: error.message, variant: "destructive" });
       }
     } else {
-      toast({ title: "User invited", description: `${email} added to allowlist as ${role}` });
+      toast({ title: "User invited", description: `${fullName || email} added as ${role.replace("_", " ")}` });
       setEmail("");
+      setFullName("");
       setNotes("");
       fetchAllowed();
     }
@@ -72,6 +80,25 @@ const InviteUsers = () => {
   const handleDelete = async (id: string) => {
     await supabase.from("allowed_users").delete().eq("id", id);
     fetchAllowed();
+  };
+
+  const startEdit = (u: AllowedUser) => {
+    setEditingId(u.id);
+    setEditName(u.full_name || "");
+  };
+
+  const saveEdit = async (id: string) => {
+    await supabase.from("allowed_users").update({ full_name: editName.trim() || null } as any).eq("id", id);
+    
+    // Also update the profile if user has already activated
+    const au = allowedUsers.find(u => u.id === id);
+    if (au?.used_at && editName.trim()) {
+      await supabase.from("profiles").update({ full_name: editName.trim() } as any).eq("email", au.email);
+    }
+    
+    setEditingId(null);
+    fetchAllowed();
+    toast({ title: "Name updated" });
   };
 
   if (!effectiveIsHrOrAdmin) {
@@ -95,9 +122,17 @@ const InviteUsers = () => {
             <CardTitle className="text-lg">Add to Allowlist</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleInvite} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <form onSubmit={handleInvite} className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="space-y-1">
-                <Label>Email</Label>
+                <Label>Full Name *</Label>
+                <Input
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="Jane Smith"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Email *</Label>
                 <Input
                   type="email"
                   value={email}
@@ -143,6 +178,7 @@ const InviteUsers = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead>Name</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Status</TableHead>
@@ -153,7 +189,34 @@ const InviteUsers = () => {
                 <TableBody>
                   {allowedUsers.map((u) => (
                     <TableRow key={u.id}>
-                      <TableCell className="font-medium">{u.email}</TableCell>
+                      <TableCell>
+                        {editingId === u.id ? (
+                          <div className="flex items-center gap-1">
+                            <Input
+                              value={editName}
+                              onChange={(e) => setEditName(e.target.value)}
+                              className="h-7 text-sm w-32"
+                              autoFocus
+                            />
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => saveEdit(u.id)}>
+                              <Check className="h-3 w-3" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0" onClick={() => setEditingId(null)}>
+                              <X className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1">
+                            <span className={`text-sm ${u.full_name ? 'font-medium' : 'text-muted-foreground italic'}`}>
+                              {u.full_name || '—'}
+                            </span>
+                            <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => startEdit(u)}>
+                              <Pencil className="h-3 w-3 text-muted-foreground" />
+                            </Button>
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm">{u.email}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="capitalize">{u.role_to_assign.replace("_", " ")}</Badge>
                       </TableCell>
