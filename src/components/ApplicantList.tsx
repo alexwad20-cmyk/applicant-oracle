@@ -169,7 +169,7 @@ export const ApplicantList = () => {
         </Card>
 
         {/* Bulk action bar */}
-        {isHrOrAdmin && selectedIds.size > 0 && (
+        {effectiveIsHrOrAdmin && selectedIds.size > 0 && (
           <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-card border shadow-lg rounded-lg px-6 py-3 flex items-center gap-4">
             <span className="text-sm font-medium">{selectedIds.size} selected</span>
             <Button size="sm" onClick={() => setBulkDialogOpen(true)}>
