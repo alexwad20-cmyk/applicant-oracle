@@ -131,7 +131,7 @@ export const ApplicantList = () => {
                     const job = jobs.find(j => j.id === c.job_id);
                     return (
                       <TableRow key={c.id} className={selectedIds.has(c.id) ? "bg-accent/10" : ""}>
-                        {isHrOrAdmin && (
+                        {effectiveIsHrOrAdmin && (
                           <TableCell>
                             <Checkbox
                               checked={selectedIds.has(c.id)}
