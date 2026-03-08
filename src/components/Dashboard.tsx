@@ -162,7 +162,7 @@ export const Dashboard = () => {
               <p className="text-sm font-medium text-destructive">
                 {stats.overdue} candidate{stats.overdue > 1 ? 's' : ''} overdue for HM review
               </p>
-              {isHrOrAdmin && (
+              {effectiveIsHrOrAdmin && (
                 <Button
                   size="sm"
                   variant="outline"
