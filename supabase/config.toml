@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.add-comment-via-token]
 verify_jwt = false
+
+[functions.send-review-emails]
+verify_jwt = false
+
+[functions.review-action]
+verify_jwt = false

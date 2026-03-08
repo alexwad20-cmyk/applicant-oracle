@@ -1,17 +1,16 @@
 import { useState, useEffect, useMemo } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Mail, Send, Eye, Edit } from "lucide-react";
+import { Mail, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useJobs } from "@/contexts/JobsContext";
 import { useToast } from "@/hooks/use-toast";
 import { DbCandidate, DbJob } from "@/types/database";
+import { EmailComposer } from "@/components/email/EmailComposer";
+import { buildCandidatePlaceholders, PlaceholderValues } from "@/lib/emailPlaceholders";
 
 interface Props {
   candidate: DbCandidate;
@@ -37,26 +36,18 @@ export const SendForReviewDialog = ({ candidate, job, onSent }: Props) => {
   const [selectedReviewers, setSelectedReviewers] = useState<string[]>([]);
   const [subject, setSubject] = useState("");
   const [htmlBody, setHtmlBody] = useState("");
-  const [templateLoaded, setTemplateLoaded] = useState(false);
+  const [defaultSubject, setDefaultSubject] = useState("");
+  const [defaultHtml, setDefaultHtml] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [tab, setTab] = useState<string>("edit");
 
-  // Fetch HMs, reviewers, and template when dialog opens
   useEffect(() => {
     if (!open) return;
 
     const fetchUsers = async () => {
-      // Fetch hiring managers
       const { data: hmRoles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "hiring_manager");
-
-      // Fetch reviewers
+        .from("user_roles").select("user_id").eq("role", "hiring_manager");
       const { data: revRoles } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "reviewer");
+        .from("user_roles").select("user_id").eq("role", "reviewer");
 
       const allUserIds = [
         ...(hmRoles || []).map((r: any) => r.user_id),
@@ -65,47 +56,35 @@ export const SendForReviewDialog = ({ candidate, job, onSent }: Props) => {
 
       if (allUserIds.length > 0) {
         const { data: profiles } = await supabase
-          .from("profiles")
-          .select("user_id, email, full_name")
+          .from("profiles").select("user_id, email, full_name")
           .in("user_id", [...new Set(allUserIds)]);
-
         const profileMap = new Map((profiles || []).map((p: any) => [p.user_id, p]));
-
-        setHiringManagers(
-          (hmRoles || [])
-            .map((r: any) => profileMap.get(r.user_id))
-            .filter(Boolean) as UserOption[]
-        );
-        setReviewers(
-          (revRoles || [])
-            .map((r: any) => profileMap.get(r.user_id))
-            .filter(Boolean) as UserOption[]
-        );
+        setHiringManagers((hmRoles || []).map((r: any) => profileMap.get(r.user_id)).filter(Boolean) as UserOption[]);
+        setReviewers((revRoles || []).map((r: any) => profileMap.get(r.user_id)).filter(Boolean) as UserOption[]);
       }
-
-      // Pre-select current HM if set on job
-      if (job?.hiring_manager_user_id) {
-        setSelectedHM(job.hiring_manager_user_id);
-      }
+      if (job?.hiring_manager_user_id) setSelectedHM(job.hiring_manager_user_id);
     };
 
     const fetchTemplate = async () => {
       const { data } = await supabase
         .from("email_templates")
         .select("subject_template, html_template")
-        .eq("key", "hm_review_request")
+        .eq("key", "hm_review_request_single")
         .eq("is_active", true)
         .single();
 
       if (data) {
         setSubject((data as any).subject_template);
         setHtmlBody((data as any).html_template);
-        setTemplateLoaded(true);
+        setDefaultSubject((data as any).subject_template);
+        setDefaultHtml((data as any).html_template);
       } else {
-        // Fallback
-        setSubject(`Review Required: ${candidate.full_name} for ${job?.title || "Position"}`);
-        setHtmlBody(`<p>Hi,</p><p>Please review candidate <strong>${candidate.full_name}</strong> for <strong>${job?.title || "the position"}</strong>.</p>`);
-        setTemplateLoaded(true);
+        const fallbackSubject = `Review Required: ${candidate.full_name} for ${job?.title || "Position"}`;
+        const fallbackHtml = `<p>Hi,</p><p>Please review <strong>${candidate.full_name}</strong> for <strong>${job?.title || "Position"}</strong>.</p>`;
+        setSubject(fallbackSubject);
+        setHtmlBody(fallbackHtml);
+        setDefaultSubject(fallbackSubject);
+        setDefaultHtml(fallbackHtml);
       }
     };
 
@@ -113,28 +92,18 @@ export const SendForReviewDialog = ({ candidate, job, onSent }: Props) => {
     fetchTemplate();
   }, [open, candidate, job]);
 
-  // Replace placeholders in content
-  const interpolate = (text: string, hmName: string) => {
-    const reviewLink = `${window.location.origin}/candidates/${candidate.id}`;
-    return text
-      .split("{{candidate_name}}").join(candidate.full_name)
-      .split("{{job_title}}").join(job?.title || "Position")
-      .split("{{hiring_manager_name}}").join(hmName || "Hiring Manager")
-      .split("{{review_link}}").join(reviewLink)
-      .split("{{days_waiting}}").join("3");
-  };
-
   const selectedHMProfile = hiringManagers.find(h => h.user_id === selectedHM);
   const hmName = selectedHMProfile?.full_name || selectedHMProfile?.email || "Hiring Manager";
 
-  const previewSubject = useMemo(() => interpolate(subject, hmName), [subject, selectedHM, candidate, job]);
-  const previewHtml = useMemo(() => interpolate(htmlBody, hmName), [htmlBody, selectedHM, candidate, job]);
+  const previewValues: PlaceholderValues = useMemo(() => ({
+    ...buildCandidatePlaceholders(candidate, job),
+    "{{hm_name}}": hmName,
+    "{{hm_email}}": selectedHMProfile?.email || "",
+  }), [candidate, job, hmName, selectedHMProfile]);
 
   const toggleReviewer = (userId: string) => {
     setSelectedReviewers(prev =>
-      prev.includes(userId)
-        ? prev.filter(id => id !== userId)
-        : [...prev, userId]
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
     );
   };
 
@@ -143,16 +112,11 @@ export const SendForReviewDialog = ({ candidate, job, onSent }: Props) => {
       toast({ title: "Please select a hiring manager", variant: "destructive" });
       return;
     }
-
     setSubmitting(true);
-
     try {
-      // 1. Assign HM to job if different
       if (job && job.hiring_manager_user_id !== selectedHM) {
         await updateJob(job.id, { hiring_manager_user_id: selectedHM } as any);
       }
-
-      // 2. Grant reviewer access for selected reviewers
       for (const revId of selectedReviewers) {
         await supabase.from("candidate_reviewer_access").insert({
           candidate_id: candidate.id,
@@ -161,21 +125,29 @@ export const SendForReviewDialog = ({ candidate, job, onSent }: Props) => {
         } as any).select();
       }
 
-      // 3. Update candidate stage to hm_review
+      // Send via edge function
+      await supabase.functions.invoke("send-review-emails", {
+        body: {
+          mode: "single",
+          candidate_id: candidate.id,
+          hm_user_id: selectedHM,
+          subject_override: subject !== defaultSubject ? subject : null,
+          html_override: htmlBody !== defaultHtml ? htmlBody : null,
+        },
+      });
+
       await updateCandidateStage(candidate.id, "hm_review", "Sent to hiring manager for review");
 
       toast({
         title: "Sent for Review",
-        description: `Email prepared for ${hmName}. Candidate moved to HM Review.`,
+        description: `Email sent to ${hmName}. Candidate moved to HM Review.`,
       });
-
       setOpen(false);
       onSent();
     } catch (err) {
       console.error(err);
       toast({ title: "Failed to send", variant: "destructive" });
     }
-
     setSubmitting(false);
   };
 
@@ -187,7 +159,7 @@ export const SendForReviewDialog = ({ candidate, job, onSent }: Props) => {
           Send for HM Review
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Send for Hiring Manager Review</DialogTitle>
           <DialogDescription>
@@ -223,88 +195,39 @@ export const SendForReviewDialog = ({ candidate, job, onSent }: Props) => {
               <div className="space-y-2">
                 <Label className="font-medium">Also share with reviewers (optional)</Label>
                 <div className="flex flex-wrap gap-2">
-                  {reviewers.map(rev => {
-                    const isSelected = selectedReviewers.includes(rev.user_id);
-                    return (
-                      <Button
-                        key={rev.user_id}
-                        type="button"
-                        variant={isSelected ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => toggleReviewer(rev.user_id)}
-                        className="text-xs"
-                      >
-                        {rev.full_name || rev.email}
-                      </Button>
-                    );
-                  })}
+                  {reviewers.map(rev => (
+                    <Button
+                      key={rev.user_id}
+                      type="button"
+                      variant={selectedReviewers.includes(rev.user_id) ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => toggleReviewer(rev.user_id)}
+                      className="text-xs"
+                    >
+                      {rev.full_name || rev.email}
+                    </Button>
+                  ))}
                 </div>
               </div>
             )}
           </div>
 
-          {/* Email Edit / Preview Tabs */}
-          <Tabs value={tab} onValueChange={setTab}>
-            <TabsList className="w-full">
-              <TabsTrigger value="edit" className="flex-1">
-                <Edit className="h-3.5 w-3.5 mr-1.5" />
-                Edit Email
-              </TabsTrigger>
-              <TabsTrigger value="preview" className="flex-1">
-                <Eye className="h-3.5 w-3.5 mr-1.5" />
-                Preview
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="edit" className="space-y-3 mt-3">
-              <div className="space-y-1.5">
-                <Label className="text-sm">Subject</Label>
-                <Input
-                  value={subject}
-                  onChange={e => setSubject(e.target.value)}
-                  placeholder="Email subject..."
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-sm">Body (HTML)</Label>
-                <Textarea
-                  value={htmlBody}
-                  onChange={e => setHtmlBody(e.target.value)}
-                  rows={10}
-                  className="font-mono text-xs"
-                />
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Placeholders: {"{{candidate_name}}"}, {"{{job_title}}"}, {"{{hiring_manager_name}}"}, {"{{review_link}}"}
-              </p>
-            </TabsContent>
-
-            <TabsContent value="preview" className="mt-3 space-y-3">
-              <div>
-                <Label className="text-xs text-muted-foreground">Subject</Label>
-                <p className="font-medium text-sm mt-0.5">{previewSubject}</p>
-              </div>
-              <div>
-                <Label className="text-xs text-muted-foreground">To</Label>
-                <p className="text-sm mt-0.5">
-                  {selectedHMProfile ? `${selectedHMProfile.full_name || ""} <${selectedHMProfile.email}>` : "No hiring manager selected"}
-                </p>
-              </div>
-              <div className="border rounded-lg p-4 bg-card">
-                <div
-                  dangerouslySetInnerHTML={{ __html: previewHtml }}
-                  className="prose prose-sm max-w-none"
-                />
-              </div>
-            </TabsContent>
-          </Tabs>
+          {/* Email Composer */}
+          <EmailComposer
+            templateKey="hm_review_request_single"
+            defaultSubject={defaultSubject}
+            defaultHtml={defaultHtml}
+            subject={subject}
+            htmlBody={htmlBody}
+            onSubjectChange={setSubject}
+            onHtmlChange={setHtmlBody}
+            previewValues={previewValues}
+            candidateId={candidate.id}
+            hmUserId={selectedHM}
+          />
 
           {/* Send Button */}
-          <Button
-            className="w-full"
-            onClick={handleSend}
-            disabled={submitting || !selectedHM}
-          >
+          <Button className="w-full" onClick={handleSend} disabled={submitting || !selectedHM}>
             <Send className="h-4 w-4 mr-2" />
             {submitting ? "Sending..." : "Send for Review"}
           </Button>

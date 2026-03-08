@@ -266,6 +266,53 @@ export type Database = {
         }
         Relationships: []
       }
+      email_drafts: {
+        Row: {
+          candidate_id: string | null
+          created_at: string
+          created_by: string
+          hiring_manager_user_id: string | null
+          html_override: string | null
+          id: string
+          subject_override: string | null
+          template_key: string
+          text_override: string | null
+          updated_at: string
+        }
+        Insert: {
+          candidate_id?: string | null
+          created_at?: string
+          created_by: string
+          hiring_manager_user_id?: string | null
+          html_override?: string | null
+          id?: string
+          subject_override?: string | null
+          template_key: string
+          text_override?: string | null
+          updated_at?: string
+        }
+        Update: {
+          candidate_id?: string | null
+          created_at?: string
+          created_by?: string
+          hiring_manager_user_id?: string | null
+          html_override?: string | null
+          id?: string
+          subject_override?: string | null
+          template_key?: string
+          text_override?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_drafts_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       email_templates: {
         Row: {
           created_at: string
