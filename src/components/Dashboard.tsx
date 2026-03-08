@@ -75,10 +75,10 @@ export const Dashboard = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">
-              {canManageJobs ? 'HR Dashboard' : 'My Reviews'}
+              {effectiveCanManageJobs ? 'HR Dashboard' : 'My Reviews'}
             </h1>
             <p className="text-muted-foreground mt-1">
-              {canManageJobs ? 'Track candidates through the hiring process' : 'Candidates pending your review'}
+              {effectiveCanManageJobs ? 'Track candidates through the hiring process' : 'Candidates pending your review'}
             </p>
           </div>
           {canManageJobs && (
