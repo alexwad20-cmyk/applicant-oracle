@@ -93,7 +93,7 @@ export const ApplicantDetail = () => {
     if (data?.signedUrl) window.open(data.signedUrl, '_blank');
   };
 
-  const canDecide = (isHiringManager || isHrOrAdmin) && candidate.stage === 'hm_review';
+  const canDecide = (effectiveIsHM || effectiveIsHrOrAdmin) && candidate.stage === 'hm_review';
 
   return (
     <AppLayout>
