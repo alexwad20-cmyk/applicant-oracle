@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { JobsProvider } from "./contexts/JobsContext";
 import { DepartmentFilterProvider } from "./contexts/DepartmentFilterContext";
+import { ImpersonationProvider } from "./contexts/ImpersonationContext";
 import { Dashboard } from "./components/Dashboard";
 import { JobPipeline } from "./components/JobPipeline";
 import { AddCandidate } from "./components/AddCandidate";
@@ -48,17 +49,19 @@ const AppRoutes = () => (
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
-      <JobsProvider>
-        <DepartmentFilterProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <AppRoutes />
-            </BrowserRouter>
-          </TooltipProvider>
-        </DepartmentFilterProvider>
-      </JobsProvider>
+      <ImpersonationProvider>
+        <JobsProvider>
+          <DepartmentFilterProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <AppRoutes />
+              </BrowserRouter>
+            </TooltipProvider>
+          </DepartmentFilterProvider>
+        </JobsProvider>
+      </ImpersonationProvider>
     </AuthProvider>
   </QueryClientProvider>
 );

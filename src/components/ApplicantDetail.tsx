@@ -10,6 +10,7 @@ import { ArrowLeft, Mail, Phone, FileText, Check, X, Clock, Download } from "luc
 import { StatusBadge } from "./StatusBadge";
 import { useJobs } from "@/contexts/JobsContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEffectivePermissions } from "@/hooks/useEffectivePermissions";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "./AppLayout";
@@ -30,7 +31,8 @@ export const ApplicantDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { getCandidate, getJob, updateCandidateStage, refreshEvents, getEventsForCandidate } = useJobs();
-  const { isHrOrAdmin, isHiringManager, user } = useAuth();
+  const { user } = useAuth();
+  const { effectiveIsHrOrAdmin, effectiveIsHM, effectiveCanApproveReject, realIsHrOrAdmin, isImpersonating } = useEffectivePermissions();
   const { toast } = useToast();
 
   const [rejectReason, setRejectReason] = useState<RejectionReason | ''>('');
@@ -60,6 +62,10 @@ export const ApplicantDetail = () => {
   }
 
   const handleApprove = async () => {
+    if (isImpersonating && !realIsHrOrAdmin) {
+      toast({ title: "Preview mode", description: "Action requires real HR/Admin permissions.", variant: "destructive" });
+      return;
+    }
     await updateCandidateStage(candidate.id, 'hm_approved', 'Approved by hiring manager');
     toast({ title: "Candidate Approved", description: `${candidate.full_name} approved` });
   };
@@ -87,7 +93,7 @@ export const ApplicantDetail = () => {
     if (data?.signedUrl) window.open(data.signedUrl, '_blank');
   };
 
-  const canDecide = (isHiringManager || isHrOrAdmin) && candidate.stage === 'hm_review';
+  const canDecide = (effectiveIsHM || effectiveIsHrOrAdmin) && candidate.stage === 'hm_review';
 
   return (
     <AppLayout>
@@ -104,7 +110,7 @@ export const ApplicantDetail = () => {
           </div>
           <div className="flex items-center gap-3">
             <StatusBadge stage={candidate.stage} />
-            {isHrOrAdmin && <ShareWithReviewer candidateId={candidate.id} />}
+            {effectiveIsHrOrAdmin && <ShareWithReviewer candidateId={candidate.id} />}
           </div>
         </div>
 
@@ -137,7 +143,7 @@ export const ApplicantDetail = () => {
           <Card className="border-0 shadow-sm">
             <CardHeader><CardTitle className="text-lg">Actions</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              {isHrOrAdmin && candidate.stage === 'new_applicant' && (
+              {effectiveIsHrOrAdmin && candidate.stage === 'new_applicant' && (
                 <SendForReviewDialog
                   candidate={candidate}
                   job={job}
@@ -204,7 +210,7 @@ export const ApplicantDetail = () => {
                 </div>
               )}
 
-              {isHrOrAdmin && (
+              {effectiveIsHrOrAdmin && (
                 <div className="pt-3 border-t">
                   <p className="text-xs text-muted-foreground mb-2">GDPR Controls</p>
                   <GdprControls candidate={candidate} />

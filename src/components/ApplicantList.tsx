@@ -10,7 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Search, Eye, Plus, Send, X } from "lucide-react";
 import { StatusBadge } from "./StatusBadge";
 import { useJobs } from "@/contexts/JobsContext";
-import { useAuth } from "@/contexts/AuthContext";
+import { useEffectivePermissions } from "@/hooks/useEffectivePermissions";
 import { useDepartmentFilter } from "@/contexts/DepartmentFilterContext";
 import { AppLayout } from "./AppLayout";
 import { STAGE_LABELS, CandidateStage } from "@/types/database";
@@ -19,7 +19,7 @@ import { BulkSendForReviewDialog } from "./candidate/BulkSendForReviewDialog";
 export const ApplicantList = () => {
   const navigate = useNavigate();
   const { candidates, jobs } = useJobs();
-  const { isHrOrAdmin } = useAuth();
+  const { effectiveIsHrOrAdmin } = useEffectivePermissions();
   const { department: deptFilter } = useDepartmentFilter();
   const [searchTerm, setSearchTerm] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("all");
@@ -105,7 +105,7 @@ export const ApplicantList = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {isHrOrAdmin && (
+                    {effectiveIsHrOrAdmin && (
                       <TableHead className="w-10">
                         <Checkbox
                           checked={allChecked}
@@ -129,7 +129,7 @@ export const ApplicantList = () => {
                     const job = jobs.find(j => j.id === c.job_id);
                     return (
                       <TableRow key={c.id} className={selectedIds.has(c.id) ? "bg-accent/10" : ""}>
-                        {isHrOrAdmin && (
+                        {effectiveIsHrOrAdmin && (
                           <TableCell>
                             <Checkbox
                               checked={selectedIds.has(c.id)}
@@ -167,7 +167,7 @@ export const ApplicantList = () => {
         </Card>
 
         {/* Bulk action bar */}
-        {isHrOrAdmin && selectedIds.size > 0 && (
+        {effectiveIsHrOrAdmin && selectedIds.size > 0 && (
           <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-card border shadow-lg rounded-lg px-6 py-3 flex items-center gap-4">
             <span className="text-sm font-medium">{selectedIds.size} selected</span>
             <Button size="sm" onClick={() => setBulkDialogOpen(true)}>

@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 import { useJobs } from "@/contexts/JobsContext";
 import { useDepartmentFilter } from "@/contexts/DepartmentFilterContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEffectivePermissions } from "@/hooks/useEffectivePermissions";
 import { StatusBadge } from "./StatusBadge";
 import { AppLayout } from "./AppLayout";
 import { CreateJobDialog } from "./CreateJobDialog";
@@ -16,7 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 export const Dashboard = () => {
   const { jobs, candidates, loading, refreshCandidates } = useJobs();
   const { department: deptFilter } = useDepartmentFilter();
-  const { canManageJobs, rolesLoading, rolesError, refreshRoles, isHrOrAdmin } = useAuth();
+  const { rolesLoading, rolesError, refreshRoles } = useAuth();
+  const { effectiveCanManageJobs, effectiveIsHrOrAdmin, realIsHrOrAdmin, isImpersonating } = useEffectivePermissions();
   const { toast } = useToast();
   const [sendingReminders, setSendingReminders] = useState(false);
 
@@ -73,13 +75,13 @@ export const Dashboard = () => {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">
-              {canManageJobs ? 'HR Dashboard' : 'My Reviews'}
+              {effectiveCanManageJobs ? 'HR Dashboard' : 'My Reviews'}
             </h1>
             <p className="text-muted-foreground mt-1">
-              {canManageJobs ? 'Track candidates through the hiring process' : 'Candidates pending your review'}
+              {effectiveCanManageJobs ? 'Track candidates through the hiring process' : 'Candidates pending your review'}
             </p>
           </div>
-          {canManageJobs && (
+          {effectiveCanManageJobs && (
             <div className="flex gap-2">
               <Link to="/pipeline">
                 <Button>
@@ -96,7 +98,7 @@ export const Dashboard = () => {
               <CreateJobDialog />
             </div>
           )}
-          {rolesLoading && !canManageJobs && (
+          {rolesLoading && !effectiveCanManageJobs && (
             <Button disabled variant="outline">
               <span className="animate-spin mr-2">⏳</span> Loading permissions...
             </Button>
@@ -160,7 +162,7 @@ export const Dashboard = () => {
               <p className="text-sm font-medium text-destructive">
                 {stats.overdue} candidate{stats.overdue > 1 ? 's' : ''} overdue for HM review
               </p>
-              {isHrOrAdmin && (
+              {effectiveIsHrOrAdmin && (
                 <Button
                   size="sm"
                   variant="outline"

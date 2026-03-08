@@ -9,6 +9,7 @@ import { RotateCcw, Save, FileText, Eye, Edit } from "lucide-react";
 import { ALL_PLACEHOLDERS, interpolateTemplate, PlaceholderValues } from "@/lib/emailPlaceholders";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEffectivePermissions } from "@/hooks/useEffectivePermissions";
 import { useToast } from "@/hooks/use-toast";
 
 interface EmailComposerProps {
@@ -41,6 +42,7 @@ export const EmailComposer = ({
   showSaveDraft = true,
 }: EmailComposerProps) => {
   const { user, isHrOrAdmin } = useAuth();
+  const { effectiveIsHrOrAdmin } = useEffectivePermissions();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
 
@@ -162,7 +164,7 @@ export const EmailComposer = ({
         </div>
 
         <div className="flex gap-2">
-          {showSaveAsTemplate && isHrOrAdmin && (
+          {showSaveAsTemplate && effectiveIsHrOrAdmin && (
             <Button variant="outline" size="sm" onClick={handleSaveAsTemplate} disabled={saving} className="text-xs">
               <Save className="h-3 w-3 mr-1" />
               Save as Template
