@@ -111,7 +111,9 @@ export const ApplicantDetail = () => {
           </div>
           <div className="flex items-center gap-3">
             <StatusBadge stage={candidate.stage} />
-            {effectiveIsHrOrAdmin && <ShareWithReviewer candidateId={candidate.id} />}
+            {(effectiveIsHrOrAdmin || effectiveIsHM) && (
+              <ShareWithReviewer candidateId={candidate.id} candidateName={candidate.full_name} hasCv={!!candidate.cv_file_path} />
+            )}
           </div>
         </div>
 
