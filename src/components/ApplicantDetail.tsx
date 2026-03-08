@@ -213,6 +213,12 @@ export const ApplicantDetail = () => {
                 </div>
               )}
 
+              {(effectiveIsHrOrAdmin || effectiveIsHM) && (
+                <div className="pt-3 border-t">
+                  <ShareHistory candidateId={candidate.id} />
+                </div>
+              )}
+
               {effectiveIsHrOrAdmin && (
                 <div className="pt-3 border-t">
                   <p className="text-xs text-muted-foreground mb-2">GDPR Controls</p>

@@ -33,6 +33,7 @@ const AppRoutes = () => (
   <Routes>
     <Route path="/auth" element={<Auth />} />
     <Route path="/review/:token" element={<ReviewToken />} />
+    <Route path="/shared-review/:token" element={<SharedReview />} />
     <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
     <Route path="/pipeline" element={<ProtectedRoute><JobPipeline /></ProtectedRoute>} />
     <Route path="/add-candidate" element={<ProtectedRoute><AddCandidate /></ProtectedRoute>} />
