@@ -164,7 +164,7 @@ export const EmailComposer = ({
         </div>
 
         <div className="flex gap-2">
-          {showSaveAsTemplate && isHrOrAdmin && (
+          {showSaveAsTemplate && effectiveIsHrOrAdmin && (
             <Button variant="outline" size="sm" onClick={handleSaveAsTemplate} disabled={saving} className="text-xs">
               <Save className="h-3 w-3 mr-1" />
               Save as Template
