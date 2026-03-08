@@ -1,61 +1,56 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { UserPlus } from "lucide-react";
+import { UserPlus, Send } from "lucide-react";
 
 interface Props {
   candidateId: string;
+  candidateName?: string;
+  hasCv?: boolean;
 }
 
-export const ShareWithReviewer = ({ candidateId }: Props) => {
+export const ShareWithReviewer = ({ candidateId, candidateName, hasCv }: Props) => {
   const { user } = useAuth();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
-  const [reviewers, setReviewers] = useState<{ user_id: string; email: string }[]>([]);
-  const [selectedReviewer, setSelectedReviewer] = useState("");
+  const [email, setEmail] = useState("");
+  const [message, setMessage] = useState("");
+  const [expiryDays, setExpiryDays] = useState("7");
+  const [attachCv, setAttachCv] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
-  useEffect(() => {
-    if (!open) return;
-    // Fetch users with reviewer role
-    const fetchReviewers = async () => {
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("user_id")
-        .eq("role", "reviewer");
-      if (!roleData?.length) return;
-
-      const userIds = roleData.map((r: any) => r.user_id);
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, email")
-        .in("user_id", userIds);
-      if (profiles) setReviewers(profiles as any);
-    };
-    fetchReviewers();
-  }, [open]);
-
-  const handleShare = async () => {
-    if (!selectedReviewer) return;
+  const handleSend = async () => {
+    if (!email.trim()) {
+      toast({ title: "Please enter a reviewer email", variant: "destructive" });
+      return;
+    }
     setSubmitting(true);
-    const { error } = await supabase.from("candidate_reviewer_access").insert({
-      candidate_id: candidateId,
-      reviewer_user_id: selectedReviewer,
-      granted_by: user?.id,
-    } as any);
-    if (error) {
-      if (error.code === "23505") {
-        toast({ title: "Already shared", description: "This reviewer already has access." });
-      } else {
-        toast({ title: "Failed to share", variant: "destructive" });
-      }
-    } else {
-      toast({ title: "Shared", description: "Reviewer can now view and comment." });
+    try {
+      const { data, error } = await supabase.functions.invoke("create-candidate-share", {
+        body: {
+          candidate_id: candidateId,
+          recipient_email: email.trim(),
+          expiry_days: parseInt(expiryDays),
+          message: message.trim() || null,
+          attach_cv: attachCv,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({ title: "Share sent", description: `Review link emailed to ${email.trim()}` });
       setOpen(false);
+      setEmail("");
+      setMessage("");
+    } catch (err: any) {
+      toast({ title: "Failed to share", description: err.message, variant: "destructive" });
     }
     setSubmitting(false);
   };
@@ -70,26 +65,58 @@ export const ShareWithReviewer = ({ candidateId }: Props) => {
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Share with Reviewer</DialogTitle>
+          <DialogTitle>Share with External Reviewer</DialogTitle>
+          <DialogDescription>
+            Send a secure, time-limited review link via email. The reviewer can view the candidate and leave comments — no account needed.
+          </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <Select value={selectedReviewer} onValueChange={setSelectedReviewer}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a reviewer" />
-            </SelectTrigger>
-            <SelectContent>
-              {reviewers.map((r) => (
-                <SelectItem key={r.user_id} value={r.user_id}>
-                  {r.email}
-                </SelectItem>
-              ))}
-              {reviewers.length === 0 && (
-                <SelectItem value="none" disabled>No reviewers found</SelectItem>
-              )}
-            </SelectContent>
-          </Select>
-          <Button className="w-full" onClick={handleShare} disabled={!selectedReviewer || submitting}>
-            {submitting ? "Sharing..." : "Grant Access"}
+          <div className="space-y-1.5">
+            <Label>Reviewer email *</Label>
+            <Input
+              type="email"
+              placeholder="reviewer@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Message to reviewer (optional)</Label>
+            <Textarea
+              placeholder="Any additional context..."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              rows={2}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Link expires in</Label>
+            <Select value={expiryDays} onValueChange={setExpiryDays}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="1">24 hours</SelectItem>
+                <SelectItem value="3">3 days</SelectItem>
+                <SelectItem value="7">7 days</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {hasCv && (
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="attach-cv"
+                checked={attachCv}
+                onCheckedChange={(v) => setAttachCv(!!v)}
+              />
+              <Label htmlFor="attach-cv" className="text-sm cursor-pointer">
+                Attach CV to email (if available)
+              </Label>
+            </div>
+          )}
+          <Button className="w-full" onClick={handleSend} disabled={submitting || !email.trim()}>
+            <Send className="h-4 w-4 mr-2" />
+            {submitting ? "Sending..." : "Send Share Email"}
           </Button>
         </div>
       </DialogContent>
