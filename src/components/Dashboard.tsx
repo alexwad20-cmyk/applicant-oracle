@@ -98,7 +98,7 @@ export const Dashboard = () => {
               <CreateJobDialog />
             </div>
           )}
-          {rolesLoading && !canManageJobs && (
+          {rolesLoading && !effectiveCanManageJobs && (
             <Button disabled variant="outline">
               <span className="animate-spin mr-2">⏳</span> Loading permissions...
             </Button>
