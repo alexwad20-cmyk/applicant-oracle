@@ -10,6 +10,7 @@ import { ArrowLeft, Mail, Phone, FileText, Check, X, Clock, Download } from "luc
 import { StatusBadge } from "./StatusBadge";
 import { useJobs } from "@/contexts/JobsContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEffectivePermissions } from "@/hooks/useEffectivePermissions";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { AppLayout } from "./AppLayout";
