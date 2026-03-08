@@ -11,6 +11,7 @@ import { Search, Eye, Plus, Send, X } from "lucide-react";
 import { StatusBadge } from "./StatusBadge";
 import { useJobs } from "@/contexts/JobsContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEffectivePermissions } from "@/hooks/useEffectivePermissions";
 import { useDepartmentFilter } from "@/contexts/DepartmentFilterContext";
 import { AppLayout } from "./AppLayout";
 import { STAGE_LABELS, CandidateStage } from "@/types/database";
