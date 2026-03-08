@@ -1,24 +1,30 @@
 import { useState, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Filter, Eye, Plus } from "lucide-react";
+import { Search, Eye, Plus, Send, X } from "lucide-react";
 import { StatusBadge } from "./StatusBadge";
 import { useJobs } from "@/contexts/JobsContext";
+import { useAuth } from "@/contexts/AuthContext";
 import { useDepartmentFilter } from "@/contexts/DepartmentFilterContext";
 import { AppLayout } from "./AppLayout";
 import { STAGE_LABELS, CandidateStage } from "@/types/database";
+import { BulkSendForReviewDialog } from "./candidate/BulkSendForReviewDialog";
 
 export const ApplicantList = () => {
   const navigate = useNavigate();
   const { candidates, jobs } = useJobs();
+  const { isHrOrAdmin } = useAuth();
   const { department: deptFilter } = useDepartmentFilter();
   const [searchTerm, setSearchTerm] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("all");
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
 
   const filtered = useMemo(() => {
     return candidates.filter(c => {
@@ -31,6 +37,27 @@ export const ApplicantList = () => {
       return matchesSearch && matchesStage;
     });
   }, [candidates, jobs, searchTerm, stageFilter, deptFilter]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === filtered.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filtered.map(c => c.id)));
+    }
+  };
+
+  const selectedCandidates = candidates.filter(c => selectedIds.has(c.id));
+  const allChecked = filtered.length > 0 && selectedIds.size === filtered.length;
+  const someChecked = selectedIds.size > 0 && selectedIds.size < filtered.length;
 
   return (
     <AppLayout>
@@ -78,7 +105,17 @@ export const ApplicantList = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                     <TableHead>Name</TableHead>
+                    {isHrOrAdmin && (
+                      <TableHead className="w-10">
+                        <Checkbox
+                          checked={allChecked}
+                          onCheckedChange={toggleAll}
+                          aria-label="Select all"
+                          {...(someChecked ? { "data-state": "indeterminate" } : {})}
+                        />
+                      </TableHead>
+                    )}
+                    <TableHead>Name</TableHead>
                     <TableHead>Job</TableHead>
                     <TableHead>Department</TableHead>
                     <TableHead>Source</TableHead>
@@ -91,7 +128,16 @@ export const ApplicantList = () => {
                   {filtered.map(c => {
                     const job = jobs.find(j => j.id === c.job_id);
                     return (
-                      <TableRow key={c.id}>
+                      <TableRow key={c.id} className={selectedIds.has(c.id) ? "bg-accent/10" : ""}>
+                        {isHrOrAdmin && (
+                          <TableCell>
+                            <Checkbox
+                              checked={selectedIds.has(c.id)}
+                              onCheckedChange={() => toggleSelect(c.id)}
+                              aria-label={`Select ${c.full_name}`}
+                            />
+                          </TableCell>
+                        )}
                         <TableCell className="font-medium">{c.full_name}</TableCell>
                         <TableCell>{job?.title || '—'}</TableCell>
                         <TableCell>
@@ -119,6 +165,30 @@ export const ApplicantList = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Bulk action bar */}
+        {isHrOrAdmin && selectedIds.size > 0 && (
+          <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-card border shadow-lg rounded-lg px-6 py-3 flex items-center gap-4">
+            <span className="text-sm font-medium">{selectedIds.size} selected</span>
+            <Button size="sm" onClick={() => setBulkDialogOpen(true)}>
+              <Send className="h-3.5 w-3.5 mr-1.5" />
+              Send to HM Review
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())}>
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
+
+        <BulkSendForReviewDialog
+          open={bulkDialogOpen}
+          onOpenChange={setBulkDialogOpen}
+          selectedCandidates={selectedCandidates}
+          onComplete={() => {
+            setSelectedIds(new Set());
+            setBulkDialogOpen(false);
+          }}
+        />
       </div>
     </AppLayout>
   );
