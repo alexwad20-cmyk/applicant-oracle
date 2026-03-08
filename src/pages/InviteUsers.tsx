@@ -24,6 +24,7 @@ interface AllowedUser {
 
 const InviteUsers = () => {
   const { user, isHrOrAdmin } = useAuth();
+  const { effectiveIsHrOrAdmin, realIsHrOrAdmin, isImpersonating } = useEffectivePermissions();
   const { toast } = useToast();
   const [allowedUsers, setAllowedUsers] = useState<AllowedUser[]>([]);
   const [email, setEmail] = useState("");
