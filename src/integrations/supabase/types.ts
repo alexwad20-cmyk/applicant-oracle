@@ -440,9 +440,21 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_hm_for_candidate: {
+        Args: { _candidate_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_hm_for_job: {
+        Args: { _job_id: string; _user_id: string }
+        Returns: boolean
+      }
       is_hr_or_admin: { Args: { _user_id: string }; Returns: boolean }
       is_reviewer_for_candidate: {
         Args: { _candidate_id: string; _user_id: string }
+        Returns: boolean
+      }
+      reviewer_can_view_job: {
+        Args: { _job_id: string; _user_id: string }
         Returns: boolean
       }
     }
