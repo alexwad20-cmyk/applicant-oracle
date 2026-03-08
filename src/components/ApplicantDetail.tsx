@@ -31,7 +31,8 @@ export const ApplicantDetail = () => {
   const navigate = useNavigate();
   const { id } = useParams();
   const { getCandidate, getJob, updateCandidateStage, refreshEvents, getEventsForCandidate } = useJobs();
-  const { isHrOrAdmin, isHiringManager, user } = useAuth();
+  const { user } = useAuth();
+  const { effectiveIsHrOrAdmin, effectiveIsHM, effectiveCanApproveReject, realIsHrOrAdmin, isImpersonating } = useEffectivePermissions();
   const { toast } = useToast();
 
   const [rejectReason, setRejectReason] = useState<RejectionReason | ''>('');
