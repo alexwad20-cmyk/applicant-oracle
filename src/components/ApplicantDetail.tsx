@@ -62,6 +62,10 @@ export const ApplicantDetail = () => {
   }
 
   const handleApprove = async () => {
+    if (isImpersonating && !realIsHrOrAdmin) {
+      toast({ title: "Preview mode", description: "Action requires real HR/Admin permissions.", variant: "destructive" });
+      return;
+    }
     await updateCandidateStage(candidate.id, 'hm_approved', 'Approved by hiring manager');
     toast({ title: "Candidate Approved", description: `${candidate.full_name} approved` });
   };
