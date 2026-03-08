@@ -81,7 +81,7 @@ export const Dashboard = () => {
               {effectiveCanManageJobs ? 'Track candidates through the hiring process' : 'Candidates pending your review'}
             </p>
           </div>
-          {canManageJobs && (
+          {effectiveCanManageJobs && (
             <div className="flex gap-2">
               <Link to="/pipeline">
                 <Button>
