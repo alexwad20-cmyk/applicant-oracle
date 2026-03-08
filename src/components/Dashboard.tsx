@@ -7,6 +7,7 @@ import { Link } from "react-router-dom";
 import { useJobs } from "@/contexts/JobsContext";
 import { useDepartmentFilter } from "@/contexts/DepartmentFilterContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEffectivePermissions } from "@/hooks/useEffectivePermissions";
 import { StatusBadge } from "./StatusBadge";
 import { AppLayout } from "./AppLayout";
 import { CreateJobDialog } from "./CreateJobDialog";
