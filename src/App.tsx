@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { JobsProvider } from "./contexts/JobsContext";
 import { DepartmentFilterProvider } from "./contexts/DepartmentFilterContext";
+import { ImpersonationProvider } from "./contexts/ImpersonationContext";
 import { Dashboard } from "./components/Dashboard";
 import { JobPipeline } from "./components/JobPipeline";
 import { AddCandidate } from "./components/AddCandidate";
