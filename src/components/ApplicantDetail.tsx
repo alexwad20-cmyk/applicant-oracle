@@ -17,6 +17,7 @@ import { STAGE_LABELS, REJECTION_REASON_LABELS, CandidateStage, RejectionReason,
 import { CommentPanel } from "./comments/CommentPanel";
 import { ShareWithReviewer } from "./comments/ShareWithReviewer";
 import { GdprControls } from "./candidate/GdprControls";
+import { SendForReviewDialog } from "./candidate/SendForReviewDialog";
 import {
   Dialog,
   DialogContent,
@@ -137,10 +138,11 @@ export const ApplicantDetail = () => {
             <CardHeader><CardTitle className="text-lg">Actions</CardTitle></CardHeader>
             <CardContent className="space-y-3">
               {isHrOrAdmin && candidate.stage === 'new_applicant' && (
-                <Button className="w-full" onClick={handleSendForReview}>
-                  <Mail className="h-4 w-4 mr-2" />
-                  Send for HM Review
-                </Button>
+                <SendForReviewDialog
+                  candidate={candidate}
+                  job={job}
+                  onSent={() => toast({ title: "Review process started" })}
+                />
               )}
 
               {canDecide && (
