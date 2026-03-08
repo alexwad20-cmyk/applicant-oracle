@@ -54,6 +54,11 @@ const Auth = () => {
       if (error) {
         toast({ title: 'Error', description: error.message, variant: 'destructive' });
       } else {
+        // Mark the allowlist entry as used on signup
+        await supabase
+          .from('allowed_users')
+          .update({ used_at: new Date().toISOString() } as any)
+          .eq('email', email.toLowerCase().trim());
         toast({ title: 'Account created', description: 'You can now sign in.' });
       }
     } else {
