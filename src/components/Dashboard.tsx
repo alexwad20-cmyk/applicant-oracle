@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +13,8 @@ import { AppLayout } from "./AppLayout";
 import { CreateJobDialog } from "./CreateJobDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+
+interface ProfileMap { [userId: string]: { full_name: string; email: string } }
 
 export const Dashboard = () => {
   const { jobs, candidates, loading, refreshCandidates } = useJobs();
