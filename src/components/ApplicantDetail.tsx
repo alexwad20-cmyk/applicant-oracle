@@ -143,7 +143,7 @@ export const ApplicantDetail = () => {
           <Card className="border-0 shadow-sm">
             <CardHeader><CardTitle className="text-lg">Actions</CardTitle></CardHeader>
             <CardContent className="space-y-3">
-              {isHrOrAdmin && candidate.stage === 'new_applicant' && (
+              {effectiveIsHrOrAdmin && candidate.stage === 'new_applicant' && (
                 <SendForReviewDialog
                   candidate={candidate}
                   job={job}
