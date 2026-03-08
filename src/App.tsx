@@ -17,6 +17,7 @@ import Auth from "./pages/Auth";
 import InviteUsers from "./pages/InviteUsers";
 import EmailTemplates from "./pages/EmailTemplates";
 import ReviewToken from "./pages/ReviewToken";
+import SharedReview from "./pages/SharedReview";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
