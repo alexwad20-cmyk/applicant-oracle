@@ -17,7 +17,8 @@ import { useToast } from "@/hooks/use-toast";
 export const Dashboard = () => {
   const { jobs, candidates, loading, refreshCandidates } = useJobs();
   const { department: deptFilter } = useDepartmentFilter();
-  const { canManageJobs, rolesLoading, rolesError, refreshRoles, isHrOrAdmin } = useAuth();
+  const { rolesLoading, rolesError, refreshRoles } = useAuth();
+  const { effectiveCanManageJobs, effectiveIsHrOrAdmin, realIsHrOrAdmin, isImpersonating } = useEffectivePermissions();
   const { toast } = useToast();
   const [sendingReminders, setSendingReminders] = useState(false);
 
