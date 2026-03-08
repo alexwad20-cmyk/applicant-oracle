@@ -210,7 +210,7 @@ export const ApplicantDetail = () => {
                 </div>
               )}
 
-              {isHrOrAdmin && (
+              {effectiveIsHrOrAdmin && (
                 <div className="pt-3 border-t">
                   <p className="text-xs text-muted-foreground mb-2">GDPR Controls</p>
                   <GdprControls candidate={candidate} />
