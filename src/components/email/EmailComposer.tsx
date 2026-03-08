@@ -9,6 +9,7 @@ import { RotateCcw, Save, FileText, Eye, Edit } from "lucide-react";
 import { ALL_PLACEHOLDERS, interpolateTemplate, PlaceholderValues } from "@/lib/emailPlaceholders";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEffectivePermissions } from "@/hooks/useEffectivePermissions";
 import { useToast } from "@/hooks/use-toast";
 
 interface EmailComposerProps {
