@@ -107,7 +107,7 @@ export const ApplicantList = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    {isHrOrAdmin && (
+                    {effectiveIsHrOrAdmin && (
                       <TableHead className="w-10">
                         <Checkbox
                           checked={allChecked}
