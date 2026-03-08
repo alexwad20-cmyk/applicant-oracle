@@ -19,6 +19,7 @@ import { CommentPanel } from "./comments/CommentPanel";
 import { ShareWithReviewer } from "./comments/ShareWithReviewer";
 import { GdprControls } from "./candidate/GdprControls";
 import { SendForReviewDialog } from "./candidate/SendForReviewDialog";
+import { ShareHistory } from "./candidate/ShareHistory";
 import {
   Dialog,
   DialogContent,
@@ -110,7 +111,9 @@ export const ApplicantDetail = () => {
           </div>
           <div className="flex items-center gap-3">
             <StatusBadge stage={candidate.stage} />
-            {effectiveIsHrOrAdmin && <ShareWithReviewer candidateId={candidate.id} />}
+            {(effectiveIsHrOrAdmin || effectiveIsHM) && (
+              <ShareWithReviewer candidateId={candidate.id} candidateName={candidate.full_name} hasCv={!!candidate.cv_file_path} />
+            )}
           </div>
         </div>
 
@@ -207,6 +210,12 @@ export const ApplicantDetail = () => {
                   {new Date(candidate.hm_review_due_at) < new Date() && (
                     <Badge variant="destructive" className="text-xs ml-1">Overdue</Badge>
                   )}
+                </div>
+              )}
+
+              {(effectiveIsHrOrAdmin || effectiveIsHM) && (
+                <div className="pt-3 border-t">
+                  <ShareHistory candidateId={candidate.id} />
                 </div>
               )}
 

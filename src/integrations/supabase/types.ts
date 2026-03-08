@@ -85,6 +85,53 @@ export type Database = {
           },
         ]
       }
+      candidate_email_shares: {
+        Row: {
+          candidate_id: string
+          created_at: string
+          created_by: string
+          expires_at: string
+          id: string
+          last_viewed_at: string | null
+          message: string | null
+          recipient_email: string
+          revoked_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          candidate_id: string
+          created_at?: string
+          created_by: string
+          expires_at: string
+          id?: string
+          last_viewed_at?: string | null
+          message?: string | null
+          recipient_email: string
+          revoked_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          candidate_id?: string
+          created_at?: string
+          created_by?: string
+          expires_at?: string
+          id?: string
+          last_viewed_at?: string | null
+          message?: string | null
+          recipient_email?: string
+          revoked_at?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "candidate_email_shares_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "candidates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       candidate_events: {
         Row: {
           action_type: string
