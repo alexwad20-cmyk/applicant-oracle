@@ -42,7 +42,7 @@ export const EmailComposer = ({
   showSaveDraft = true,
 }: EmailComposerProps) => {
   const { user, isHrOrAdmin } = useAuth();
-  const { toast } = useToast();
+  const { effectiveIsHrOrAdmin } = useEffectivePermissions();
   const [saving, setSaving] = useState(false);
 
   const previewSubject = useMemo(
