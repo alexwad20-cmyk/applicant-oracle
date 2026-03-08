@@ -23,6 +23,21 @@ export const Dashboard = () => {
   const { effectiveCanManageJobs, effectiveIsHrOrAdmin, realIsHrOrAdmin, isImpersonating } = useEffectivePermissions();
   const { toast } = useToast();
   const [sendingReminders, setSendingReminders] = useState(false);
+  const [hmProfiles, setHmProfiles] = useState<ProfileMap>({});
+
+  // Fetch HM profiles for job cards
+  useEffect(() => {
+    const hmIds = [...new Set(jobs.map(j => j.hiring_manager_user_id).filter(Boolean))] as string[];
+    if (hmIds.length === 0) return;
+    supabase.from("profiles").select("user_id, full_name, email").in("user_id", hmIds)
+      .then(({ data }) => {
+        if (data) {
+          const map: ProfileMap = {};
+          data.forEach((p: any) => { map[p.user_id] = { full_name: p.full_name, email: p.email }; });
+          setHmProfiles(map);
+        }
+      });
+  }, [jobs]);
 
   const filteredJobs = useMemo(() => jobs.filter(j => deptFilter === 'all' || j.department === deptFilter), [jobs, deptFilter]);
   const filteredCandidates = useMemo(() => {
