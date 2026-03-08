@@ -20,7 +20,6 @@ import { BulkSendForReviewDialog } from "./candidate/BulkSendForReviewDialog";
 export const ApplicantList = () => {
   const navigate = useNavigate();
   const { candidates, jobs } = useJobs();
-  const { } = useAuth();
   const { effectiveIsHrOrAdmin } = useEffectivePermissions();
   const { department: deptFilter } = useDepartmentFilter();
   const [searchTerm, setSearchTerm] = useState("");
