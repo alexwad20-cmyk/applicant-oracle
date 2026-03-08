@@ -19,6 +19,7 @@ import { CommentPanel } from "./comments/CommentPanel";
 import { ShareWithReviewer } from "./comments/ShareWithReviewer";
 import { GdprControls } from "./candidate/GdprControls";
 import { SendForReviewDialog } from "./candidate/SendForReviewDialog";
+import { ShareHistory } from "./candidate/ShareHistory";
 import {
   Dialog,
   DialogContent,
