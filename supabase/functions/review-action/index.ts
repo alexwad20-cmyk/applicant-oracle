@@ -12,7 +12,7 @@ const corsHeaders = {
 
 function htmlPage(title: string, body: string): Response {
   return new Response(
-    `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
+    `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escapeHtml(title)}</title>
     <style>body{font-family:Arial,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#f8f9fa;}
     .card{background:#fff;border-radius:12px;padding:32px;max-width:480px;width:100%;box-shadow:0 4px 20px rgba(0,0,0,0.08);}
     h2{color:#0a7e8c;margin:0 0 16px;}
@@ -46,36 +46,57 @@ Deno.serve(async (req) => {
       .maybeSingle();
   }
 
+  async function loadCandidate(candidateId: string) {
+    const { data: candidate, error } = await supabase.from("candidates")
+      .select("*, jobs(title, department)").eq("id", candidateId).single();
+    if (error || !candidate) return null;
+    return candidate;
+  }
+
+  function stalePage(candidateName = "this candidate") {
+    return htmlPage("Link no longer valid", `<h2 class="error">This review link is no longer valid</h2>
+      <p>${escapeHtml(candidateName)} has moved on from hiring-manager review, so this old review link can no longer change their stage.</p>`);
+  }
+
   if (req.method === "POST") {
     try {
       const formData = await req.formData();
       const token = String(formData.get("token") || "");
       const reason = String(formData.get("reason") || "");
-      const notes = String(formData.get("notes") || "");
+      const notes = String(formData.get("notes") || "").trim();
       if (!token || !reason) return htmlPage("Error", '<h2 class="error">Missing required fields</h2>');
 
       const { data: tokenRecord } = await lookupToken(token);
       if (!tokenRecord) return htmlPage("Error", '<h2 class="error">Invalid or expired link</h2>');
 
-      const { data: candidate } = await supabase.from("candidates")
-        .select("*, jobs(title, department)").eq("id", tokenRecord.candidate_id).single();
+      const candidate = await loadCandidate(tokenRecord.candidate_id);
+      if (!candidate) return htmlPage("Error", '<h2 class="error">Candidate not found</h2>');
+      if (candidate.stage !== "hm_review") {
+        await supabase.from("candidate_events").insert({
+          candidate_id: tokenRecord.candidate_id,
+          action_type: "stale_review_token_attempt",
+          notes: `Rejected stale NO action; current stage was ${candidate.stage}`,
+        });
+        return stalePage(candidate.full_name);
+      }
 
+      const now = new Date().toISOString();
       await supabase.from("candidates").update({
-        stage: "hm_rejected", stage_updated_at: new Date().toISOString(),
-      }).eq("id", tokenRecord.candidate_id);
+        stage: "hm_rejected", stage_updated_at: now,
+      }).eq("id", tokenRecord.candidate_id).eq("stage", "hm_review");
 
       await supabase.from("candidate_events").insert([
         { candidate_id: tokenRecord.candidate_id, action_type: "stage_change",
-          from_stage: candidate?.stage, to_stage: "hm_rejected", reason_code: reason, notes: notes || null },
+          from_stage: candidate.stage, to_stage: "hm_rejected", reason_code: reason, notes: notes || null },
         { candidate_id: tokenRecord.candidate_id, action_type: "hm_review_completed",
           notes: `HM declined. Reason: ${reason}${notes ? `. Notes: ${notes}` : ""}` },
       ]);
 
-      await supabase.from("review_tokens").update({ used_at: new Date().toISOString() }).eq("id", tokenRecord.id);
+      await supabase.from("review_tokens").update({ used_at: now }).eq("id", tokenRecord.id);
       await notifyAdmins(supabase, tokenRecord.candidate_id, "NO", reason, notes, candidate);
 
       return htmlPage("Decision Recorded", `<div class="success">✓</div><h2>Thank you</h2>
-        <p>Your decision (<strong>NO</strong>) for <strong>${escapeHtml(candidate?.full_name ?? "")}</strong> is recorded.</p>`);
+        <p>Your decision (<strong>NO</strong>) for <strong>${escapeHtml(candidate.full_name ?? "")}</strong> is recorded.</p>`);
     } catch (e) {
       return htmlPage("Error", `<h2 class="error">Something went wrong</h2><p>${escapeHtml((e as Error).message)}</p>`);
     }
@@ -88,23 +109,32 @@ Deno.serve(async (req) => {
   const { data: tokenRecord } = await lookupToken(token);
   if (!tokenRecord) return htmlPage("Link Expired", '<h2 class="error">Invalid or expired link</h2>');
 
-  const { data: candidate } = await supabase.from("candidates")
-    .select("*, jobs(title, department)").eq("id", tokenRecord.candidate_id).single();
+  const candidate = await loadCandidate(tokenRecord.candidate_id);
+  if (!candidate) return htmlPage("Error", '<h2 class="error">Candidate not found</h2>');
+  if (candidate.stage !== "hm_review") {
+    await supabase.from("candidate_events").insert({
+      candidate_id: tokenRecord.candidate_id,
+      action_type: "stale_review_token_attempt",
+      notes: `Rejected stale ${action.toUpperCase()} action; current stage was ${candidate.stage}`,
+    });
+    return stalePage(candidate.full_name);
+  }
 
   if (action === "yes") {
+    const now = new Date().toISOString();
     await supabase.from("candidates").update({
-      stage: "hm_approved", stage_updated_at: new Date().toISOString(),
-    }).eq("id", tokenRecord.candidate_id);
+      stage: "hm_approved", stage_updated_at: now,
+    }).eq("id", tokenRecord.candidate_id).eq("stage", "hm_review");
     await supabase.from("candidate_events").insert([
       { candidate_id: tokenRecord.candidate_id, action_type: "stage_change",
-        from_stage: candidate?.stage, to_stage: "hm_approved" },
+        from_stage: candidate.stage, to_stage: "hm_approved" },
       { candidate_id: tokenRecord.candidate_id, action_type: "hm_review_completed",
         notes: "HM approved via YES action" },
     ]);
-    await supabase.from("review_tokens").update({ used_at: new Date().toISOString() }).eq("id", tokenRecord.id);
+    await supabase.from("review_tokens").update({ used_at: now }).eq("id", tokenRecord.id);
     await notifyAdmins(supabase, tokenRecord.candidate_id, "YES", null, null, candidate);
     return htmlPage("Approved", `<div class="success">✓</div><h2>Thank you</h2>
-      <p>You have approved <strong>${escapeHtml(candidate?.full_name ?? "")}</strong>.</p>`);
+      <p>You have approved <strong>${escapeHtml(candidate.full_name ?? "")}</strong>.</p>`);
   }
 
   if (action === "no") {
@@ -115,14 +145,14 @@ Deno.serve(async (req) => {
       ["culture_values","Culture/values"],["declined_role","Declined role"],
       ["counteroffer","Counteroffer"],["other","Other"],
     ];
-    const opts = reasons.map(([v,l]) => `<option value="${v}">${l}</option>`).join("");
+    const opts = reasons.map(([v,l]) => `<option value="${escapeHtml(v)}">${escapeHtml(l)}</option>`).join("");
     const actionUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/review-action`;
     return htmlPage("Decline", `<h2>Decline candidate</h2>
-      <p>Declining <strong>${escapeHtml(candidate?.full_name ?? "")}</strong>.</p>
-      <form method="POST" action="${actionUrl}">
+      <p>Declining <strong>${escapeHtml(candidate.full_name ?? "")}</strong>.</p>
+      <form method="POST" action="${escapeHtml(actionUrl)}">
         <input type="hidden" name="token" value="${escapeHtml(token)}" />
         <label>Reason *</label><select name="reason" required>${opts}</select>
-        <label>Notes (optional)</label><textarea name="notes" rows="3"></textarea>
+        <label>Notes (optional)</label><textarea name="notes" rows="3" maxlength="4000"></textarea>
         <button type="submit" class="btn btn-submit" style="margin-top:16px;">Confirm</button>
       </form>`);
   }
@@ -145,11 +175,13 @@ async function notifyAdmins(
     let emailError: string | null = null;
     if (isEmailConfigured() && recipients.length) {
       try {
+        const candidateName = escapeHtml(candidate?.full_name ?? "candidate");
+        const jobTitle = escapeHtml(candidate?.jobs?.title ?? "");
         await sendEmail({
           to: recipients,
           subject: `Review complete: ${candidate?.full_name ?? "candidate"} — ${outcome}`,
-          html: `<p>HM review complete for <strong>${candidate?.full_name ?? ""}</strong> (${candidate?.jobs?.title ?? ""}).</p>
-            <p>Decision: <strong>${outcome}</strong></p>${reason ? `<p>Reason: ${reason}</p>` : ""}${notes ? `<p>Notes: ${notes}</p>` : ""}`,
+          html: `<p>HM review complete for <strong>${candidateName}</strong> (${jobTitle}).</p>
+            <p>Decision: <strong>${escapeHtml(outcome)}</strong></p>${reason ? `<p>Reason: ${escapeHtml(reason)}</p>` : ""}${notes ? `<p>Notes: ${escapeHtml(notes)}</p>` : ""}`,
         });
         sent = true;
       } catch (e) { emailError = (e as Error).message; }
