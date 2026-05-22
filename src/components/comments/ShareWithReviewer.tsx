@@ -45,12 +45,18 @@ export const ShareWithReviewer = ({ candidateId, candidateName, hasCv }: Props) 
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      toast({ title: "Share sent", description: `Review link emailed to ${email.trim()}` });
+      const emailed = !!data?.emailed;
+      toast({
+        title: emailed ? "Share link emailed" : "Share link created",
+        description: emailed
+          ? `Review link sent to ${email.trim()}.`
+          : `Email provider not configured — copy this link and send it manually: ${data?.share_url ?? ""}`,
+      });
       setOpen(false);
       setEmail("");
       setMessage("");
-    } catch (err: any) {
-      toast({ title: "Failed to share", description: err.message, variant: "destructive" });
+    } catch (err: unknown) {
+      toast({ title: "Failed to share", description: (err as Error).message, variant: "destructive" });
     }
     setSubmitting(false);
   };
