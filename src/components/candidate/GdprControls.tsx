@@ -98,5 +98,3 @@ export const GdprControls = ({ candidate }: Props) => {
   );
 };
 
-// silence unused-import lint when LinkOff is undefined
-void LinkOff;
