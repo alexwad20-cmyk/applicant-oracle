@@ -5,11 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useJobs } from "@/contexts/JobsContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { Trash2, EyeOff, AlertTriangle, FileX, LinkOff } from "lucide-react";
+import { Trash2, EyeOff, AlertTriangle, FileX, Link2Off } from "lucide-react";
 import { DbCandidate } from "@/types/database";
-
-// lucide-react ships LinkOff as 'Link2Off'; fall back if needed
-import { Link2Off } from "lucide-react";
 
 interface Props {
   candidate: DbCandidate;
