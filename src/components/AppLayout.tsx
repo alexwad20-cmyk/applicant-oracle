@@ -24,25 +24,24 @@ const ROLE_LABELS: Record<PreviewRole, string> = {
 export const AppLayout = ({ children }: AppLayoutProps) => {
   const { user, rolesError, refreshRoles, signOut } = useAuth();
   const { previewRole, setPreviewRole, resetPreviewRole, isImpersonating } = useImpersonation();
-  const { effectiveIsHrOrAdmin, effectiveIsHM, effectiveIsAdmin, effectiveIsHR, effectiveIsReviewer, realIsHrOrAdmin } = useEffectivePermissions();
+  const { effectiveIsHM, effectiveIsAdmin, effectiveIsHR, effectiveIsReviewer, realIsHrOrAdmin, realIsAdmin } = useEffectivePermissions();
   const { department, setDepartment, departments } = useDepartmentFilter();
   const location = useLocation();
 
   const navItems = [
     { to: '/', label: 'Dashboard', icon: LayoutDashboard, show: true },
     { to: '/pipeline', label: 'Pipeline', icon: Briefcase, show: true },
-    { to: '/applicants', label: 'All Candidates', icon: Users, show: effectiveIsHrOrAdmin },
-    { to: '/add-candidate', label: 'Add Candidate', icon: Plus, show: effectiveIsHrOrAdmin },
-    { to: '/settings/invite', label: 'Invite Users', icon: UserPlus, show: effectiveIsHrOrAdmin },
-    { to: '/settings/email-templates', label: 'Email Templates', icon: Mail, show: effectiveIsHrOrAdmin },
-    { to: '/debug', label: 'Debug', icon: Bug, show: true },
+    { to: '/applicants', label: 'All Candidates', icon: Users, show: realIsHrOrAdmin },
+    { to: '/add-candidate', label: 'Add Candidate', icon: Plus, show: realIsHrOrAdmin },
+    { to: '/settings/invite', label: 'Invite Users', icon: UserPlus, show: realIsHrOrAdmin },
+    { to: '/settings/email-templates', label: 'Email Templates', icon: Mail, show: realIsHrOrAdmin },
+    { to: '/debug', label: 'Debug', icon: Bug, show: realIsAdmin },
   ];
 
   const effectiveRoleLabel = effectiveIsAdmin ? 'Admin' : effectiveIsHR ? 'HR' : effectiveIsHM ? 'Hiring Manager' : effectiveIsReviewer ? 'Reviewer' : 'No Role';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted">
-      {/* Impersonation banner */}
       {isImpersonating && (
         <div className="bg-amber-500/15 border-b border-amber-500/30 px-4 py-1.5 flex items-center gap-2 justify-center">
           <Eye className="h-3.5 w-3.5 text-amber-600" />
@@ -56,7 +55,6 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
         </div>
       )}
 
-      {/* Top nav bar */}
       <header className="bg-card border-b border-border sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between h-14">
           <div className="flex items-center gap-6">
@@ -95,7 +93,6 @@ export const AppLayout = ({ children }: AppLayoutProps) => {
               </Select>
             )}
 
-            {/* Role Switcher — only for real Admin/HR */}
             {realIsHrOrAdmin && (
               <Select value={previewRole} onValueChange={(v) => setPreviewRole(v as PreviewRole)}>
                 <SelectTrigger className={`w-[150px] h-8 text-xs ${isImpersonating ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20' : ''}`}>
