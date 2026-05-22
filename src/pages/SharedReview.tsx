@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { MessageSquare, Send, CheckCircle, FileText, User, Briefcase, MapPin } from "lucide-react";
+import { MessageSquare, Send, CheckCircle, FileText, User, Briefcase } from "lucide-react";
 
 interface CandidateInfo {
   full_name: string;
@@ -17,12 +17,6 @@ interface CandidateInfo {
   source: string;
   visa_required: boolean;
   cv_url: string | null;
-  comments: Array<{
-    body: string;
-    author_email: string | null;
-    created_at: string;
-    source: string;
-  }>;
 }
 
 const SharedReview = () => {
@@ -111,7 +105,7 @@ const SharedReview = () => {
           <CardContent className="text-center py-12">
             <CheckCircle className="h-12 w-12 text-green-600 mx-auto mb-4" />
             <h2 className="text-xl font-bold">Thank you!</h2>
-            <p className="text-muted-foreground mt-2">Your comment has been submitted and the team has been notified.</p>
+            <p className="text-muted-foreground mt-2">Your comment has been submitted.</p>
           </CardContent>
         </Card>
       </div>
@@ -121,7 +115,6 @@ const SharedReview = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted p-4">
       <div className="max-w-2xl mx-auto space-y-6 py-8">
-        {/* Candidate Summary */}
         <Card className="border-0 shadow-sm">
           <CardHeader className="text-center pb-2">
             <MessageSquare className="h-8 w-8 mx-auto text-primary mb-2" />
@@ -154,29 +147,6 @@ const SharedReview = () => {
           </CardContent>
         </Card>
 
-        {/* Existing Comments */}
-        {candidate?.comments && candidate.comments.length > 0 && (
-          <Card className="border-0 shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-sm">Previous Comments</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-3 max-h-60 overflow-y-auto">
-                {candidate.comments.map((c, i) => (
-                  <div key={i} className="border-l-2 border-muted pl-3 text-sm">
-                    <div className="flex justify-between text-xs">
-                      <span className="font-medium">{c.author_email || "Anonymous"}</span>
-                      <span className="text-muted-foreground">{new Date(c.created_at).toLocaleString()}</span>
-                    </div>
-                    <p className="text-muted-foreground mt-0.5">{c.body}</p>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Comment Form */}
         <Card className="border-0 shadow-sm">
           <CardHeader>
             <CardTitle className="text-sm">Add Your Feedback</CardTitle>
@@ -208,6 +178,7 @@ const SharedReview = () => {
                 onChange={(e) => setComment(e.target.value)}
                 placeholder="Share your feedback about this candidate..."
                 rows={4}
+                maxLength={4000}
               />
             </div>
             <Button className="w-full" onClick={handleSubmit} disabled={submitting || !comment.trim()}>

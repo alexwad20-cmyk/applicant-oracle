@@ -22,18 +22,30 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
+const LoadingScreen = () => (
+  <div className="min-h-screen flex items-center justify-center"><p>Loading...</p></div>
+);
+
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><p>Loading...</p></div>;
+  if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/auth" replace />;
   return <>{children}</>;
 };
 
 const AdminOnlyRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading, roles, rolesLoading } = useAuth();
-  if (loading || rolesLoading) return <div className="min-h-screen flex items-center justify-center"><p>Loading...</p></div>;
+  if (loading || rolesLoading) return <LoadingScreen />;
   if (!user) return <Navigate to="/auth" replace />;
-  if (!roles.includes('admin')) return <Navigate to="/" replace />;
+  if (!roles.includes("admin")) return <Navigate to="/" replace />;
+  return <>{children}</>;
+};
+
+const HrOrAdminRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading, roles, rolesLoading } = useAuth();
+  if (loading || rolesLoading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/auth" replace />;
+  if (!roles.includes("admin") && !roles.includes("hr")) return <Navigate to="/" replace />;
   return <>{children}</>;
 };
 
@@ -44,13 +56,13 @@ const AppRoutes = () => (
     <Route path="/shared-review/:token" element={<SharedReview />} />
     <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
     <Route path="/pipeline" element={<ProtectedRoute><JobPipeline /></ProtectedRoute>} />
-    <Route path="/add-candidate" element={<ProtectedRoute><AddCandidate /></ProtectedRoute>} />
-    <Route path="/add-applicant" element={<ProtectedRoute><AddCandidate /></ProtectedRoute>} />
+    <Route path="/add-candidate" element={<HrOrAdminRoute><AddCandidate /></HrOrAdminRoute>} />
+    <Route path="/add-applicant" element={<HrOrAdminRoute><AddCandidate /></HrOrAdminRoute>} />
     <Route path="/applicants" element={<ProtectedRoute><ApplicantList /></ProtectedRoute>} />
     <Route path="/applicants/:id" element={<ProtectedRoute><ApplicantDetail /></ProtectedRoute>} />
     <Route path="/candidates/:id" element={<ProtectedRoute><ApplicantDetail /></ProtectedRoute>} />
-    <Route path="/settings/invite" element={<ProtectedRoute><InviteUsers /></ProtectedRoute>} />
-    <Route path="/settings/email-templates" element={<ProtectedRoute><EmailTemplates /></ProtectedRoute>} />
+    <Route path="/settings/invite" element={<HrOrAdminRoute><InviteUsers /></HrOrAdminRoute>} />
+    <Route path="/settings/email-templates" element={<HrOrAdminRoute><EmailTemplates /></HrOrAdminRoute>} />
     <Route path="/debug" element={<AdminOnlyRoute><DebugPanel /></AdminOnlyRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>

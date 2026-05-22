@@ -18,6 +18,7 @@ Deno.serve(async (req) => {
     const ctx = await requireAuth(req);
     const body = await req.json();
     const { candidate_id, recipient_email, expiry_days, message, attach_cv } = body;
+    const includeCv = attach_cv === true;
 
     if (!candidate_id || !recipient_email) {
       return json({ error: "candidate_id and recipient_email required" }, 400);
@@ -26,7 +27,6 @@ Deno.serve(async (req) => {
       return json({ error: "Invalid recipient email" }, 400);
     }
 
-    // Permission: HR/Admin or HM-for-candidate
     if (!ctx.isHrOrAdmin) {
       const isHm = await ctx.isHm(candidate_id);
       if (!isHm) return json({ error: "Permission denied" }, 403);
@@ -50,19 +50,19 @@ Deno.serve(async (req) => {
       expires_at: expiresAt,
       created_by: ctx.userId,
       message: message || null,
+      attach_cv: includeCv,
     });
     if (insertErr) return json({ error: insertErr.message }, 500);
 
     const origin = req.headers.get("origin") || req.headers.get("referer")?.replace(/\/+$/, "") || "";
     const shareUrl = `${origin}/shared-review/${rawToken}`;
 
-    // Best-effort email send
     let emailed = false;
     let emailError: string | null = null;
     if (isEmailConfigured()) {
       try {
         let cvSignedUrl: string | null = null;
-        if (candidate.cv_file_path) {
+        if (includeCv && candidate.cv_file_path) {
           const { data: signed } = await ctx.admin.storage
             .from("candidate-cvs")
             .createSignedUrl(candidate.cv_file_path, 3600);
@@ -79,8 +79,8 @@ Deno.serve(async (req) => {
               <p style="margin:4px 0;color:#666;">${escapeHtml(job?.title ?? "")} ${job?.department ? "• " + escapeHtml(job.department) : ""}</p>
             </div>
             ${message ? `<blockquote style="border-left:3px solid #2563eb;padding:8px 12px;color:#555;">${escapeHtml(message)}</blockquote>` : ""}
-            <p><a href="${shareUrl}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;">View &amp; comment</a></p>
-            ${cvSignedUrl ? `<p style="font-size:13px;color:#666;">Or <a href="${cvSignedUrl}">download the CV directly</a> (link expires in 1 hour).</p>` : ""}
+            <p><a href="${escapeHtml(shareUrl)}" style="display:inline-block;background:#2563eb;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;">View &amp; comment</a></p>
+            ${cvSignedUrl ? `<p style="font-size:13px;color:#666;">Or <a href="${escapeHtml(cvSignedUrl)}">download the CV directly</a> (link expires in 1 hour).</p>` : ""}
             <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
             <p style="font-size:12px;color:#999;">Secure, time-limited link — expires ${new Date(expiresAt).toLocaleDateString()}. Do not forward.</p>
           </div>`;
@@ -96,8 +96,8 @@ Deno.serve(async (req) => {
       actor_user_id: ctx.userId,
       action_type: emailed ? "share_sent" : "share_link_created",
       notes: emailed
-        ? `Shared with ${recipient_email}, link emailed`
-        : `Share link created for ${recipient_email} (email not sent: ${emailError ?? "no email provider configured"})`,
+        ? `Shared with ${recipient_email}, link emailed${includeCv ? ", CV included" : ", CV not included"}`
+        : `Share link created for ${recipient_email} (${includeCv ? "CV included" : "CV not included"}; email not sent: ${emailError ?? "no email provider configured"})`,
     });
 
     return json({ success: true, share_url: shareUrl, emailed, email_error: emailError });

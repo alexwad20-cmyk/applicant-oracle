@@ -5,26 +5,29 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+function json(body: unknown, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
     const { token } = await req.json();
-    if (!token) throw new Error("Token required");
+    if (!token) return json({ error: "Token required" }, 400);
 
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
 
-    // Hash the token
     const encoder = new TextEncoder();
     const hashBuffer = await crypto.subtle.digest("SHA-256", encoder.encode(token));
-    const tokenHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, "0")).join("");
+    const tokenHash = Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, "0")).join("");
 
-    // Look up share
     const { data: share } = await supabase
       .from("candidate_email_shares")
       .select("*")
@@ -33,44 +36,24 @@ Deno.serve(async (req) => {
       .gt("expires_at", new Date().toISOString())
       .single();
 
-    if (!share) {
-      return new Response(JSON.stringify({ error: "Link expired or revoked" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!share) return json({ error: "Link expired or revoked" }, 401);
 
-    // Get candidate + job
     const { data: candidate } = await supabase
       .from("candidates")
       .select("full_name, source, visa_required, cv_file_path, jobs!candidates_job_id_fkey(title, department)")
       .eq("id", share.candidate_id)
       .single();
 
-    if (!candidate) {
-      return new Response(JSON.stringify({ error: "Candidate not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!candidate) return json({ error: "Candidate not found" }, 404);
 
-    // CV signed URL
     let cvUrl: string | null = null;
-    if (candidate.cv_file_path) {
+    if (share.attach_cv === true && candidate.cv_file_path) {
       const { data: signedData } = await supabase.storage
         .from("candidate-cvs")
         .createSignedUrl(candidate.cv_file_path, 3600);
       if (signedData?.signedUrl) cvUrl = signedData.signedUrl;
     }
 
-    // Get comments for this candidate
-    const { data: comments } = await supabase
-      .from("candidate_comments")
-      .select("body, author_email, created_at, source")
-      .eq("candidate_id", share.candidate_id)
-      .order("created_at", { ascending: true });
-
-    // Update last_viewed_at
     await supabase
       .from("candidate_email_shares")
       .update({ last_viewed_at: new Date().toISOString() })
@@ -78,21 +61,16 @@ Deno.serve(async (req) => {
 
     const job = (candidate as any).jobs;
 
-    return new Response(JSON.stringify({
+    return json({
       full_name: candidate.full_name,
       job_title: job?.title || "Position",
       department: job?.department || "",
       source: candidate.source,
       visa_required: candidate.visa_required,
       cv_url: cvUrl,
-      comments: comments || [],
-    }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      comments: [],
     });
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: err.message }, 500);
   }
 });

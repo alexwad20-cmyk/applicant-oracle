@@ -91,7 +91,6 @@ export const JobsProvider: React.FC<{ children: React.ReactNode }> = ({ children
       created_by: user?.id,
     } as any).select().single();
     if (error) { console.error(error); return null; }
-    // Log event
     if (data) {
       await supabase.from('candidate_events').insert({
         candidate_id: (data as any).id,
@@ -125,7 +124,7 @@ export const JobsProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // HM transitions go through the server-side RPC which enforces whitelisted
     // transitions and required rejection reasons. HR/Admin can still call it.
-    const hmTargets: CandidateStage[] = ['hm_approved', 'hm_shortlisted', 'hm_rejected'];
+    const hmTargets: CandidateStage[] = ['hm_approved', 'hm_rejected'];
     if (fromStage === 'hm_review' && hmTargets.includes(newStage)) {
       const { error } = await supabase.rpc('hm_update_stage', {
         _candidate_id: id,
