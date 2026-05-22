@@ -1,210 +1,118 @@
+# Production Readiness & Security Hardening Pass
 
+This is a focused hardening pass — no new features, no UI redesign. I'll work through the issues in dependency order so each step builds on a stable base.
 
-# Full Feature Plan: Pipeline DnD, Filters, Bulk Actions, Invite-Only, Reminders, Reviewers, Email Templates
+## 1. Edge Function lockdown (auth + role checks)
 
-## Current State Summary
+Classify every function in `supabase/functions/` into two groups and enforce accordingly.
 
-The app is a hiring pipeline tracker with Supabase Auth, Postgres, and Storage. It has jobs, candidates, candidate_events, profiles, user_roles, and review_tokens tables. RLS policies exist but are all marked as **RESTRICTIVE** (which may still cause issues -- we will fix these as part of Phase A). The `app_role` enum has `admin`, `hr`, `hiring_manager`. There are no Edge Functions, no drag-and-drop, no department filters, no bulk actions, and signup is publicly available.
+**Public (token-only)** — `verify_jwt = false`, no role assumed, must validate a hashed token before any action:
+- `review-action` (HM YES/NO click from email)
+- `validate-review-token`, `add-comment-via-token` (legacy review token flow)
+- `validate-share-token`, `add-comment-via-share-token` (reviewer share flow)
+- `handle-email-suppression` (webhook from email provider, if present)
 
----
+**Authenticated (JWT required + server-side role check)** — switch `verify_jwt = true` in `supabase/config.toml` and add `getClaims()` + `has_role`/`is_hr_or_admin`/`is_hm_for_candidate` checks:
+- `create-candidate-share` (HR/Admin or HM-for-candidate)
+- `send-review-emails` (HR/Admin only)
+- `send-review-reminders` (HR/Admin only; cron path uses a separate service-role secret header)
+- `notify-admin-review-complete` (called only from review-action token flow → keep public but require valid token context, not raw input)
 
-## Phase A: Department Filters + RLS Fix
+For each authenticated function: use the anon-key client with the caller's Authorization header to read identity, then a separate service-role client only for the privileged writes that follow the permission check.
 
-### Database
-- Fix all RLS policies to be **PERMISSIVE** (drop restrictive, recreate as permissive) across `user_roles`, `profiles`, `jobs`, `candidates`, `candidate_events`, `review_tokens`
-- Add index on `jobs(department)`, `candidates(job_id)`, `candidates(stage)` for filter performance
-- Add `last_reminder_sent_at` (timestamp nullable) and `reminder_count` (int default 0) columns to `candidates` table (needed later but cheap to add now)
+## 2. Remove public self-signup
 
-### Frontend
-- Add a global department filter dropdown to `AppLayout` (stored in URL params or React state)
-- Pass department filter into `JobPipeline`, `Dashboard`, and `ApplicantList`
-- Filter jobs by `job.department`, candidates inherit department via `job_id` join
-- Add department column to `ApplicantList` table
-- Add department badge to job cards
+- `src/pages/Auth.tsx`: remove the "Don't have an account? Sign up" toggle and the signup form entirely. Keep only sign-in.
+- Call `supabase--configure_auth` with `disable_signup: true` so the API rejects signups even if someone calls it directly.
+- Keep the allowlist + first-login role assignment flow as-is (admin invites → user signs in → role assigned from `allowed_users`).
 
----
+## 3. Fix email sending
 
-## Phase B: Drag-and-Drop Kanban Pipeline
+Right now several functions `console.log("[NOTIFY] ...")` instead of sending. Resend is referenced in knowledge but not wired. I'll:
 
-### Dependencies
-- Install `@dnd-kit/core` and `@dnd-kit/sortable`
+- Set up Lovable Emails (built-in) via `email_domain` tools if no domain is configured, OR detect `RESEND_API_KEY` and use Resend if the user has it.
+- Add a shared `_shared/send-email.ts` helper that actually sends or throws a clear error if no provider is configured.
+- Update `send-review-emails`, `send-review-reminders`, `notify-admin-review-complete`, `create-candidate-share` to use the helper.
+- UI: in `ShareWithReviewer` / share dialog, return `{ emailed: boolean, shareUrl }` from the edge function; toast says "Share link created and emailed" only when `emailed === true`, otherwise "Share link created — copy and send manually".
 
-### Frontend
-- Refactor `JobPipeline` to use dnd-kit `DndContext` with droppable stage columns and draggable candidate cards
-- On drop:
-  - Validate permissions: HR/Admin can move freely; HM can only move `hm_review` candidates on their jobs to `hm_approved`/`hm_rejected`
-  - If dropping to `hm_rejected`: open a rejection reason modal (reuse the existing `REJECTION_REASON_LABELS` select pattern from `ApplicantDetail`)
-  - Optimistically update UI, call `updateCandidateStage()`, revert on error
-  - Show toast on success/failure
-- Candidate cards remain clickable for detail view
+Because email-provider setup needs user input (domain DNS), I'll first check `email_domain--check_email_domain_status`. If no domain, I'll surface the setup dialog and meanwhile make the functions return clear "email_not_configured" errors instead of fake success.
 
----
+## 4. Hash all public tokens consistently
 
-## Phase C: Multi-Select + Bulk Actions
+Today: `review_tokens.token_hash` and `candidate_email_shares.token_hash` actually store the raw token (the code does `token_hash: token` with the plaintext UUID). Change to:
 
-### Frontend
-- Add selection checkboxes to candidate cards in Pipeline and ApplicantList
-- Create a `BulkActionsBar` component (sticky bottom bar) shown when selection count > 0, displaying:
-  - "Send to HM Review" (for `new_applicant` candidates)
-  - "Nudge Hiring Manager" (for `hm_review` candidates)
-  - Selection count + "Clear" button
-- Bulk "Send to HM Review":
-  - Process each candidate sequentially with a progress indicator
-  - Update `stage` to `hm_review`, set `hm_review_due_at`, log `candidate_events`
-  - Show summary toast (X succeeded, Y failed)
-- Bulk "Nudge" is a placeholder until Edge Functions are built in Phase E
+- Generate `token = crypto.randomUUID() + crypto.randomUUID()` (high entropy).
+- Store `sha256(token)` hex in `token_hash`.
+- Email/share link contains the raw token; lookup uses `sha256(input)`.
+- Apply to: `review-action`, `send-review-emails`, `send-review-reminders`, `create-candidate-share`, `validate-share-token`, `add-comment-via-share-token`, `validate-review-token`, `add-comment-via-token`.
+- Add a shared `_shared/tokens.ts` with `generateToken()` and `hashToken()`.
 
----
+## 5. GDPR anonymise / delete — server-side
 
-## Phase D: Invite-Only + Allowlist + GDPR Controls
+Add two SECURITY DEFINER RPCs callable only by HR/Admin:
 
-### Database
-- Alter `app_role` enum to add `'reviewer'` value
-- Create `allowed_users` table:
-  - `id` uuid PK
-  - `email` text unique (lowercased via trigger)
-  - `role_to_assign` app_role
-  - `invited_by` uuid (references auth.users)
-  - `notes` text nullable
-  - `used_at` timestamp nullable
-  - `created_at` timestamp default now()
-- RLS: only admin/hr can SELECT/INSERT/UPDATE/DELETE on `allowed_users`
-- Create a database function `check_user_allowed(email text)` (SECURITY DEFINER) that returns boolean
+- `anonymize_candidate(_candidate_id uuid)` — replaces name/email/phone/notes/agency with `'[redacted]'`, nulls `cv_file_path` (and deletes the storage object via an edge function wrapper), rewrites `candidate_comments.body` to `'[redacted]'` where it likely contains PII, deletes `candidate_email_shares` and `review_tokens`, keeps `candidate_events` rows but nulls free-text `notes`. Inserts a final `candidate_events` row `action_type='anonymized'`.
+- `delete_candidate(_candidate_id uuid)` — hard delete cascade (candidate + comments + events + shares + tokens + storage object).
 
-### Frontend -- Auth page changes
-- Remove public signup toggle from Auth page
-- After sign-in, check `allowed_users` for the user's email. If not found, show "Access not approved" screen and sign the user out
-- On first approved sign-in (when `used_at` is null), auto-assign roles from `allowed_users.role_to_assign` and set `used_at`
+Add a small edge function `gdpr-action` (authenticated, HR/Admin only) that:
+1. Verifies role
+2. Deletes the CV storage object via service-role
+3. Calls the appropriate RPC
 
-### Frontend -- Admin "Invite User" UI
-- New page/dialog accessible from nav (Admin/HR only): `Settings > Invite Users`
-- Form: email + role dropdown (admin, hr, hiring_manager, reviewer)
-- Inserts into `allowed_users`
-- Optionally sends invite email (Phase E Edge Function) or shows instructions
+Update `GdprControls.tsx` to call this function with two distinct buttons: **Anonymise**, **Delete**, plus a separate **Remove CV** button and **Expire share links** button. Clarify in UI copy that `data_retention_settings` is informational and not automated yet.
 
-### GDPR Controls
-- Add "Delete Candidate" and "Anonymise Candidate" buttons on candidate detail (HR/Admin only)
-- Delete: hard delete candidate + delete CV from storage + delete events
-- Anonymise: replace `full_name`, `email`, `phone` with "[Anonymised]", delete CV, keep stage/events for stats
-- Create `data_retention_settings` table (single-row config: `retention_days` int default 365)
-- Admin-only "Run Retention Cleanup" button (manual trigger calling an Edge Function in Phase E)
+## 6. Tighten HM RLS
 
----
+Current: `"HM can update candidates for their jobs" FOR UPDATE USING is_hm_for_job(...)` — allows updating any column. Replace with a tighter policy and move stage transitions to a SECURITY DEFINER RPC `hm_update_stage(_candidate_id, _new_stage, _reason)` that whitelists allowed transitions:
+- `hm_review → hm_approved | hm_shortlisted | hm_rejected` only
+- requires `reason_code` for rejected
 
-## Phase E: Reminders + Admin Notifications (Edge Functions)
+Drop the broad UPDATE policy. HMs keep INSERT on `candidate_comments` and `candidate_email_shares` (already scoped). Frontend already restricts UI via `useEffectivePermissions`; this just enforces it server-side.
 
-### Edge Function: `send-review-reminders`
-- Query candidates in `hm_review` where overdue or last reminder > 24h ago, `reminder_count < 5`
-- For each, send email to HM (via Resend or log for now)
-- Update `last_reminder_sent_at`, increment `reminder_count`
-- Log `candidate_events` with action `reminder_sent`
-- Config in `supabase/config.toml`: `verify_jwt = false` (validate in code)
-- Manual trigger: Admin "Run Reminders Now" button on Dashboard calls the function
+## 7. Restrict Debug page
 
-### Edge Function: `notify-admin-review-complete`
-- Triggered when candidate stage changes from `hm_review` to `hm_approved`/`hm_rejected`
-- Called from `updateCandidateStage` in `JobsContext` after successful update
-- Sends email to all admin/hr users with candidate name, decision, reason, and link
-- Logs `candidate_events` with action `admin_notified`
+`src/components/DebugPanel.tsx` → wrap route in admin-only guard in `App.tsx`. Non-admins get redirected to `/`. Use `realIsAdmin` (not effective) so impersonation can't unlock it.
 
-### Frontend
-- Add "Run Reminders Now" button on Dashboard (Admin only)
-- Show `reminder_count` badge on overdue candidate cards
-- Wire `updateCandidateStage` to call `notify-admin-review-complete` Edge Function on HM decisions
+## 8. Business-day SLA
 
----
+Replace `hm_review_due_at = now() + 72h` with `+ 3 business days` (skip Sat/Sun). Add helper `addBusinessDays(date, n)` in:
+- DB: `add_business_days(timestamptz, int) returns timestamptz` SQL function used in any trigger/insert.
+- Edge functions: `_shared/business-days.ts` for `send-review-reminders` to skip weekends entirely (no reminders sent Sat/Sun) and base overdue on business-day deadline.
+- Frontend: same helper for displaying countdown.
 
-## Phase F: Reviewer Role + Comments + Share Flow
+## 9. Lint / TS cleanup
 
-### Database
-- Create `candidate_comments` table:
-  - `id` uuid PK
-  - `candidate_id` uuid FK
-  - `author_user_id` uuid nullable
-  - `author_email` text nullable
-  - `body` text
-  - `visibility` text default `'internal_only'`
-  - `source` text default `'app'` (values: `app`, `email`)
-  - `created_at` timestamp default now()
-- Create `candidate_reviewer_access` table:
-  - `id` uuid PK
-  - `candidate_id` uuid FK
-  - `reviewer_user_id` uuid FK
-  - `granted_by` uuid
-  - `created_at` timestamp default now()
-  - Unique on `(candidate_id, reviewer_user_id)`
-- RLS for `candidate_comments`:
-  - HR/Admin: full access
-  - HM: can read/insert for candidates on their jobs
-  - Reviewer: can read/insert only for candidates in `candidate_reviewer_access`
-- RLS for `candidate_reviewer_access`:
-  - HR/Admin: full access
-  - Reviewer: can SELECT own rows
-- Update `candidates` RLS: add permissive policy for reviewers who have access via `candidate_reviewer_access`
-- Update `jobs` RLS: add permissive SELECT for reviewers who have candidate access on that job
+Run `npm run lint`, triage, fix:
+- Replace `any` with proper types or `unknown` + narrowing where reasonable
+- Remove empty blocks
+- Add missing hook deps or wrap callbacks in `useCallback`
+- Do NOT relax `eslint.config.js` rules
 
-### Frontend
-- Add "Comments" panel to `ApplicantDetail` page (timeline style, below Activity Log)
-- Comment input box for authorized users
-- "Share with Reviewer" button on candidate detail (HR/Admin only):
-  - Dialog to select a user with `reviewer` role
-  - Inserts into `candidate_reviewer_access`
-- Reviewer dashboard: shows only shared candidates, with comment-only actions (no stage change buttons)
+Confirm `npm run build` passes (harness does this automatically).
 
----
+## 10. Env hygiene
 
-## Phase G: Email-to-Comment (Fallback Link)
+- Verify `.gitignore` contains `.env`
+- Create `.env.example` with placeholder names only (no values)
+- Confirm only `VITE_*` publishable values are in `.env` (they are — anon key + URL + project id, all safe for frontend)
 
-### Edge Function: `add-comment-via-token`
-- Generate a time-limited token when sharing with a reviewer
-- Email contains a "Add Comment" link pointing to a public page
-- Page validates token, shows candidate summary + comment form
-- Submits comment to `candidate_comments` with `source='email'` and `author_email`
-- No platform account required for this flow
+## Technical notes
 
-### Frontend
-- Create a minimal public page `/review/:token` that shows candidate info + comment form
-- Token validation via Edge Function
+- `supabase/config.toml`: flip `verify_jwt = true` (i.e. remove the override) for `send-review-emails`, `send-review-reminders`, `notify-admin-review-complete`, `create-candidate-share`. Keep `verify_jwt = false` for token-validation functions and `review-action` (browser GET from email).
+- Cron-invoked functions (`send-review-reminders`): when `verify_jwt = true`, the pg_cron job posts with the service-role key as Bearer, which `getClaims` accepts as a service role — handle that path by allowing role `service_role` to bypass user-role checks.
+- Hashing uses Web Crypto `crypto.subtle.digest('SHA-256', ...)` in both Deno and the browser (we only hash in edge functions).
+- DB migrations needed:
+  1. `hm_update_stage` RPC + drop/replace HM update policy
+  2. `anonymize_candidate`, `delete_candidate` RPCs
+  3. `add_business_days` SQL function
+  4. Index on `review_tokens.token_hash` and `candidate_email_shares.token_hash` (already PK-ish? add unique index)
 
----
+## Out of scope
 
-## Phase H: Email Templates + Preview/Edit UI
+- Email provider DNS setup (requires user action — I'll surface the dialog if needed)
+- UI redesign
+- New features beyond what's required to fix the above
 
-### Database
-- Create `email_templates` table:
-  - `id` uuid PK
-  - `key` text unique (e.g., `hm_review_request`, `hm_review_reminder`, `admin_review_notification`, `reviewer_share`)
-  - `name` text
-  - `subject_template` text
-  - `html_template` text
-  - `text_template` text nullable
-  - `is_active` boolean default true
-  - `updated_by` uuid nullable
-  - `updated_at` timestamp default now()
-  - `created_at` timestamp default now()
-- Seed default templates with placeholders (`{{candidate_name}}`, `{{job_title}}`, etc.)
-- RLS: only admin/hr can read/write
-- Optional: `email_template_events` audit table
+## Deliverable
 
-### Frontend
-- New page: `Settings > Email Templates` (Admin/HR only)
-- List templates with "Edit" and "Preview" buttons
-- Editor: subject + HTML body textarea
-- Preview modal: select a sample candidate/job, render with real data, show desktop + plain text views, flag unresolved placeholders
-- "Preview Email" button on candidate card and in bulk action modal (HR/Admin)
-
-### Edge Functions
-- Update all email-sending functions to load template by key from DB, fill placeholders server-side, then send
-
----
-
-## Technical Notes
-
-- All new tables get RLS enabled with **PERMISSIVE** policies
-- The `has_role` and `is_hr_or_admin` SECURITY DEFINER functions are used in RLS to avoid recursion
-- A new `is_reviewer_for_candidate(_user_id uuid, _candidate_id uuid)` SECURITY DEFINER function will be created for reviewer RLS
-- dnd-kit is preferred over react-beautiful-dnd (maintained, accessible, lightweight)
-- Edge Functions use `verify_jwt = false` in config.toml with in-code JWT validation via `getClaims()`
-- Email sending initially logs to console; wired to Resend when API key is configured
-- All phases are independent and can be shipped incrementally
-
+A summary at the end covering: public vs authenticated functions, role enforcement, token handling, real vs simulated email sends, GDPR coverage, HM permission boundaries, and build/lint status.

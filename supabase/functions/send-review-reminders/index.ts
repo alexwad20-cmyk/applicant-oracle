@@ -1,4 +1,10 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// Authenticated (HR/Admin or cron service-role). Sends reminder emails to HMs for
+// overdue HM_REVIEW candidates. Skips weekends. Uses hashed reminder tokens.
+
+import { requireAuth, requireRole } from "../_shared/auth.ts";
+import { generateToken, hashToken } from "../_shared/tokens.ts";
+import { sendEmail, isEmailConfigured } from "../_shared/email.ts";
+import { isBusinessHourUtc } from "../_shared/business-days.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -6,144 +12,113 @@ const corsHeaders = {
 };
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
-  }
+  if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabase = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
+    const ctx = await requireAuth(req);
+    requireRole(ctx, "hr_admin");
 
-    // Find overdue candidates in hm_review with reminder_count < 5
+    // Don't pester HMs on weekends unless explicitly forced.
+    const force = new URL(req.url).searchParams.get("force") === "1";
+    if (!isBusinessHourUtc() && !force) {
+      return new Response(JSON.stringify({ success: true, skipped: "weekend" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const supabase = ctx.admin;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+
     const { data: candidates, error } = await supabase
       .from("candidates")
-      .select("id, full_name, email, phone, source, agency_name, visa_required, cv_file_path, job_id, created_at, hm_review_due_at, last_reminder_sent_at, reminder_count")
-      .eq("stage", "hm_review")
-      .lt("reminder_count", 5);
-
+      .select("id, full_name, email, phone, visa_required, cv_file_path, job_id, created_at, hm_review_due_at, last_reminder_sent_at, reminder_count")
+      .eq("stage", "hm_review").lt("reminder_count", 5);
     if (error) throw error;
 
     const now = new Date();
-    const hmGroups = new Map<string, { hmUserId: string; candidates: any[] }>();
+    const hmGroups = new Map<string, { hmUserId: string; candidates: Array<Record<string, unknown> & { job?: { title?: string; department?: string; hiring_manager_user_id?: string } }> }>();
 
-    for (const c of candidates || []) {
-      const isOverdue = c.hm_review_due_at && new Date(c.hm_review_due_at) < now;
-      const lastReminder = c.last_reminder_sent_at ? new Date(c.last_reminder_sent_at) : null;
-      const reminderDue = !lastReminder || (now.getTime() - lastReminder.getTime()) > 24 * 60 * 60 * 1000;
-      if (!isOverdue || !reminderDue) continue;
+    for (const c of candidates ?? []) {
+      const overdue = c.hm_review_due_at && new Date(c.hm_review_due_at) < now;
+      const last = c.last_reminder_sent_at ? new Date(c.last_reminder_sent_at) : null;
+      const due = !last || now.getTime() - last.getTime() > 86_400_000;
+      if (!overdue || !due) continue;
 
-      const { data: job } = await supabase
-        .from("jobs")
-        .select("title, department, location, hiring_manager_user_id")
-        .eq("id", c.job_id)
-        .single();
-
+      const { data: job } = await supabase.from("jobs")
+        .select("title, department, location, hiring_manager_user_id").eq("id", c.job_id).maybeSingle();
       if (!job?.hiring_manager_user_id) continue;
 
       const hmId = job.hiring_manager_user_id;
-      if (!hmGroups.has(hmId)) {
-        hmGroups.set(hmId, { hmUserId: hmId, candidates: [] });
-      }
+      if (!hmGroups.has(hmId)) hmGroups.set(hmId, { hmUserId: hmId, candidates: [] });
       hmGroups.get(hmId)!.candidates.push({ ...c, job });
     }
 
     let sent = 0;
-
-    // Get bulk reminder template
-    const { data: tmpl } = await supabase
-      .from("email_templates")
-      .select("subject_template, html_template")
-      .eq("key", "hm_review_reminder_bulk")
-      .eq("is_active", true)
-      .single();
+    let emailError: string | null = isEmailConfigured() ? null : "email_not_configured";
 
     for (const [hmId, group] of hmGroups) {
       const { data: hmProfile } = await supabase
-        .from("profiles")
-        .select("full_name, email")
-        .eq("user_id", hmId)
-        .single();
-
+        .from("profiles").select("full_name, email").eq("user_id", hmId).maybeSingle();
       if (!hmProfile) continue;
 
-      // Build candidate list HTML with YES/NO per candidate
       let listHtml = "";
       for (const c of group.candidates) {
-        // Generate new token for reminder
-        const token = crypto.randomUUID();
+        const rawToken = generateToken();
+        const tokenHash = await hashToken(rawToken);
         await supabase.from("review_tokens").insert({
-          candidate_id: c.id,
-          token_hash: token,
-          expires_at: new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString(),
+          candidate_id: c.id as string, token_hash: tokenHash,
+          expires_at: new Date(Date.now() + 7 * 86400000).toISOString(),
         });
 
-        const baseUrl = `${supabaseUrl}/functions/v1/review-action`;
-        const yesUrl = `${baseUrl}?token=${token}&action=yes`;
-        const noUrl = `${baseUrl}?token=${token}&action=no`;
+        const base = `${supabaseUrl}/functions/v1/review-action`;
+        const yesUrl = `${base}?token=${rawToken}&action=yes`;
+        const noUrl = `${base}?token=${rawToken}&action=no`;
 
         let cvUrl = "#";
         if (c.cv_file_path) {
           const { data: signed } = await supabase.storage
-            .from("candidate-cvs")
-            .createSignedUrl(c.cv_file_path, 7 * 24 * 3600);
+            .from("candidate-cvs").createSignedUrl(String(c.cv_file_path), 7 * 86400);
           if (signed?.signedUrl) cvUrl = signed.signedUrl;
         }
 
         listHtml += `<div style="background:#f8f9fa;border-radius:8px;padding:16px;margin:16px 0;border:1px solid #e5e7eb;">
           <h3 style="margin:0 0 12px 0;">${c.full_name}</h3>
-          <table style="width:100%;border-collapse:collapse;font-size:14px;">
-            <tr><td style="padding:4px 8px;font-weight:bold;">Job</td><td>${c.job?.title || "—"} — ${c.job?.department || ""}</td></tr>
-            <tr><td style="padding:4px 8px;font-weight:bold;">Email</td><td>${c.email || ""}</td></tr>
-            <tr><td style="padding:4px 8px;font-weight:bold;">Phone</td><td>${c.phone || ""}</td></tr>
-            <tr><td style="padding:4px 8px;font-weight:bold;">Visa</td><td>${c.visa_required ? "Yes" : "No"}</td></tr>
-            <tr><td style="padding:4px 8px;font-weight:bold;">CV</td><td><a href="${cvUrl}">Download CV</a></td></tr>
-          </table>
-          <div style="text-align:center;margin:16px 0 8px 0;">
-            <a href="${yesUrl}" style="display:inline-block;padding:10px 28px;background:#16a34a;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;margin-right:12px;">YES</a>
-            <a href="${noUrl}" style="display:inline-block;padding:10px 28px;background:#dc2626;color:#fff;text-decoration:none;border-radius:6px;font-weight:bold;">NO</a>
-          </div>
+          <p>${c.job?.title ?? ""} — ${c.job?.department ?? ""}</p>
+          <p><a href="${cvUrl}">Download CV</a></p>
+          <p><a href="${yesUrl}" style="padding:8px 20px;background:#16a34a;color:#fff;text-decoration:none;border-radius:6px;margin-right:8px;">YES</a>
+             <a href="${noUrl}" style="padding:8px 20px;background:#dc2626;color:#fff;text-decoration:none;border-radius:6px;">NO</a></p>
         </div>`;
 
-        // Update candidate reminder tracking
         await supabase.from("candidates").update({
           last_reminder_sent_at: now.toISOString(),
-          reminder_count: c.reminder_count + 1,
-        }).eq("id", c.id);
+          reminder_count: (c.reminder_count as number) + 1,
+        }).eq("id", c.id as string);
 
         await supabase.from("candidate_events").insert({
-          candidate_id: c.id,
-          action_type: "reminder_sent",
-          notes: `Reminder #${c.reminder_count + 1} sent to ${hmProfile.full_name || hmProfile.email}`,
+          candidate_id: c.id as string, action_type: "reminder_sent",
+          notes: `Reminder #${(c.reminder_count as number) + 1} for ${hmProfile.full_name || hmProfile.email}`,
         });
       }
 
-      // Render template
-      let subj = tmpl?.subject_template || `Reminder: ${group.candidates.length} candidates need your review`;
-      let html = tmpl?.html_template || `<p>Hi {{hm_name}},</p><p>Please review these candidates:</p>{{candidate_list_html}}`;
+      const subject = `Reminder: ${group.candidates.length} candidate(s) awaiting your review`;
+      const html = `<p>Hi ${hmProfile.full_name || hmProfile.email},</p>
+        <p>These candidates are overdue for your review:</p>${listHtml}`;
 
-      const placeholders: Record<string, string> = {
-        "{{hm_name}}": hmProfile.full_name || hmProfile.email,
-        "{{hm_email}}": hmProfile.email,
-        "{{candidate_count}}": String(group.candidates.length),
-        "{{candidate_list_html}}": listHtml,
-      };
-
-      for (const [k, v] of Object.entries(placeholders)) {
-        subj = subj.split(k).join(v);
-        html = html.split(k).join(v);
+      if (isEmailConfigured()) {
+        try {
+          await sendEmail({ to: hmProfile.email, subject, html });
+          sent++;
+        } catch (e) { emailError = (e as Error).message; }
       }
-
-      console.log(`[REMINDER] To: ${hmProfile.email}, Subject: ${subj}, Candidates: ${group.candidates.length}`);
-      sent++;
     }
 
-    return new Response(JSON.stringify({ success: true, hm_groups_reminded: sent }), {
+    return new Response(JSON.stringify({ success: true, hm_groups: hmGroups.size, emails_sent: sent, email_error: emailError }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (err) {
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+  } catch (e) {
+    if (e instanceof Response) return e;
+    return new Response(JSON.stringify({ error: (e as Error).message }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

@@ -123,25 +123,43 @@ export const JobsProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const candidate = candidates.find(c => c.id === id);
     const fromStage = candidate?.stage;
 
-    await supabase.from('candidates').update({
-      stage: newStage,
-      stage_updated_at: new Date().toISOString(),
-      ...(newStage === 'hm_review' ? { hm_review_due_at: new Date(Date.now() + 72 * 60 * 60 * 1000).toISOString() } : {}),
-    } as any).eq('id', id);
-
-    await supabase.from('candidate_events').insert({
-      candidate_id: id,
-      actor_user_id: user?.id,
-      action_type: 'stage_change',
-      from_stage: fromStage,
-      to_stage: newStage,
-      reason_code: reasonCode || null,
-      notes: notes || null,
-    } as any);
+    // HM transitions go through the server-side RPC which enforces whitelisted
+    // transitions and required rejection reasons. HR/Admin can still call it.
+    const hmTargets: CandidateStage[] = ['hm_approved', 'hm_shortlisted', 'hm_rejected'];
+    if (fromStage === 'hm_review' && hmTargets.includes(newStage)) {
+      const { error } = await supabase.rpc('hm_update_stage', {
+        _candidate_id: id,
+        _new_stage: newStage,
+        _reason_code: (reasonCode as never) || null,
+        _notes: notes || null,
+      });
+      if (error) { console.error(error); throw error; }
+    } else {
+      // Other transitions (HR/Admin only by RLS) — direct update.
+      const businessDayDue = (() => {
+        const d = new Date();
+        let added = 0;
+        while (added < 3) {
+          d.setDate(d.getDate() + 1);
+          const dow = d.getDay();
+          if (dow !== 0 && dow !== 6) added++;
+        }
+        return d.toISOString();
+      })();
+      await supabase.from('candidates').update({
+        stage: newStage,
+        stage_updated_at: new Date().toISOString(),
+        ...(newStage === 'hm_review' ? { hm_review_due_at: businessDayDue } : {}),
+      }).eq('id', id);
+      await supabase.from('candidate_events').insert({
+        candidate_id: id, actor_user_id: user?.id, action_type: 'stage_change',
+        from_stage: fromStage, to_stage: newStage,
+        reason_code: reasonCode || null, notes: notes || null,
+      });
+    }
 
     await refreshCandidates();
 
-    // Notify admins on HM decisions
     if (fromStage === 'hm_review' && (newStage === 'hm_approved' || newStage === 'hm_rejected')) {
       try {
         await supabase.functions.invoke('notify-admin-review-complete', {

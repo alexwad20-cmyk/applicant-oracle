@@ -1,9 +1,9 @@
 project_id = "itptteaaafmlqcxztinx"
 
-[functions.send-review-reminders]
-verify_jwt = false
+# --- PUBLIC (token-only) edge functions ---
+# Validate a hashed token before doing anything privileged.
 
-[functions.notify-admin-review-complete]
+[functions.review-action]
 verify_jwt = false
 
 [functions.validate-review-token]
@@ -12,17 +12,14 @@ verify_jwt = false
 [functions.add-comment-via-token]
 verify_jwt = false
 
-[functions.send-review-emails]
-verify_jwt = false
-
-[functions.review-action]
-verify_jwt = false
-
-[functions.create-candidate-share]
-verify_jwt = false
-
 [functions.validate-share-token]
 verify_jwt = false
 
 [functions.add-comment-via-share-token]
 verify_jwt = false
+
+# --- AUTHENTICATED internal functions ---
+# verify_jwt is the platform default; we additionally enforce role checks
+# in code via _shared/auth.ts. Listed here for documentation only — no overrides.
+# functions: create-candidate-share, send-review-emails, send-review-reminders,
+#            notify-admin-review-complete, gdpr-action

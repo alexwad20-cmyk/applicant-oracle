@@ -29,6 +29,14 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const AdminOnlyRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading, roles, rolesLoading } = useAuth();
+  if (loading || rolesLoading) return <div className="min-h-screen flex items-center justify-center"><p>Loading...</p></div>;
+  if (!user) return <Navigate to="/auth" replace />;
+  if (!roles.includes('admin')) return <Navigate to="/" replace />;
+  return <>{children}</>;
+};
+
 const AppRoutes = () => (
   <Routes>
     <Route path="/auth" element={<Auth />} />
@@ -43,7 +51,7 @@ const AppRoutes = () => (
     <Route path="/candidates/:id" element={<ProtectedRoute><ApplicantDetail /></ProtectedRoute>} />
     <Route path="/settings/invite" element={<ProtectedRoute><InviteUsers /></ProtectedRoute>} />
     <Route path="/settings/email-templates" element={<ProtectedRoute><EmailTemplates /></ProtectedRoute>} />
-    <Route path="/debug" element={<ProtectedRoute><DebugPanel /></ProtectedRoute>} />
+    <Route path="/debug" element={<AdminOnlyRoute><DebugPanel /></AdminOnlyRoute>} />
     <Route path="*" element={<NotFound />} />
   </Routes>
 );

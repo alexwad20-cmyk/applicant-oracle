@@ -529,13 +529,38 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      add_business_days: {
+        Args: { _days: number; _start: string }
+        Returns: string
+      }
+      anonymize_candidate: {
+        Args: { _candidate_id: string }
+        Returns: undefined
+      }
       check_user_allowed: { Args: { check_email: string }; Returns: boolean }
+      delete_candidate_cascade: {
+        Args: { _candidate_id: string }
+        Returns: undefined
+      }
+      expire_candidate_share_links: {
+        Args: { _candidate_id: string }
+        Returns: undefined
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
         Returns: boolean
+      }
+      hm_update_stage: {
+        Args: {
+          _candidate_id: string
+          _new_stage: Database["public"]["Enums"]["candidate_stage"]
+          _notes?: string
+          _reason_code?: Database["public"]["Enums"]["rejection_reason"]
+        }
+        Returns: undefined
       }
       is_hm_for_candidate: {
         Args: { _candidate_id: string; _user_id: string }

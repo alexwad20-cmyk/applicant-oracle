@@ -10,12 +10,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { Briefcase } from 'lucide-react';
 
 const Auth = () => {
-  const { user, loading, signIn, signUp } = useAuth();
+  const { user, loading, signIn } = useAuth();
   const { toast } = useToast();
-  const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [fullName, setFullName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [notAllowed, setNotAllowed] = useState(false);
 
@@ -34,75 +32,47 @@ const Auth = () => {
     setSubmitting(true);
     setNotAllowed(false);
 
-    if (isSignUp) {
-      // Check allowlist before signup
+    const { error } = await signIn(email, password);
+    if (error) {
+      toast({ title: 'Sign in failed', description: error.message, variant: 'destructive' });
+      setSubmitting(false);
+      return;
+    }
+
+    // After sign-in, verify allowlist and assign role on first login.
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
       const { data: allowed } = await supabase.rpc('check_user_allowed', {
-        check_email: email,
-      } as any);
+        check_email: session.user.email || '',
+      });
 
       if (!allowed) {
+        setNotAllowed(true);
         toast({
           title: 'Access not approved',
-          description: 'Your email is not in the approved users list. Please contact an administrator.',
+          description: 'Your email is not on the approved users list. Contact an administrator.',
           variant: 'destructive',
         });
+        await supabase.auth.signOut();
         setSubmitting(false);
         return;
       }
 
-      const { error } = await signUp(email, password, fullName);
-      if (error) {
-        toast({ title: 'Error', description: error.message, variant: 'destructive' });
-      } else {
-        // Mark the allowlist entry as used on signup
+      const { data: allowEntry } = await supabase
+        .from('allowed_users')
+        .select('id, role_to_assign, used_at')
+        .eq('email', (session.user.email || '').toLowerCase())
+        .maybeSingle();
+
+      if (allowEntry && !allowEntry.used_at) {
+        await supabase.from('user_roles').insert({
+          user_id: session.user.id,
+          role: allowEntry.role_to_assign,
+        });
         await supabase
           .from('allowed_users')
-          .update({ used_at: new Date().toISOString() } as any)
-          .eq('email', email.toLowerCase().trim());
-        toast({ title: 'Account created', description: 'You can now sign in.' });
-      }
-    } else {
-      const { error } = await signIn(email, password);
-      if (error) {
-        toast({ title: 'Error', description: error.message, variant: 'destructive' });
-      } else {
-        // After sign-in, check allowlist and auto-assign role if first login
-        const { data: { session } } = await supabase.auth.getSession();
-        if (session?.user) {
-          const { data: allowed } = await supabase.rpc('check_user_allowed', {
-            check_email: session.user.email || '',
-          } as any);
-
-          if (!allowed) {
-            setNotAllowed(true);
-            toast({
-              title: 'Access not approved',
-              description: 'Your email is not in the approved users list.',
-              variant: 'destructive',
-            });
-            await supabase.auth.signOut();
-            setSubmitting(false);
-            return;
-          }
-
-          // Auto-assign role on first login
-          const { data: allowEntry } = await supabase
-            .from('allowed_users')
-            .select('id, role_to_assign, used_at')
-            .eq('email', (session.user.email || '').toLowerCase())
-            .single();
-
-          if (allowEntry && !allowEntry.used_at) {
-            await supabase.from('user_roles').insert({
-              user_id: session.user.id,
-              role: allowEntry.role_to_assign,
-            } as any);
-            await supabase
-              .from('allowed_users')
-              .update({ used_at: new Date().toISOString() } as any)
-              .eq('id', allowEntry.id);
-          }
-        }
+          .update({ used_at: new Date().toISOString() })
+          .eq('id', allowEntry.id);
       }
     }
     setSubmitting(false);
@@ -116,60 +86,30 @@ const Auth = () => {
             <Briefcase className="h-6 w-6 text-primary-foreground" />
           </div>
           <CardTitle className="text-2xl">Hiring Manager Review Tracker</CardTitle>
-          <CardDescription>
-            {isSignUp ? 'Create your account' : 'Sign in to continue'}
-          </CardDescription>
+          <CardDescription>Sign in to your invited account</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {isSignUp && (
-              <div className="space-y-2">
-                <Label htmlFor="fullName">Full Name</Label>
-                <Input
-                  id="fullName"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  placeholder="Your full name"
-                  required
-                />
-              </div>
-            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
+              <Input id="email" type="email" value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                required
-              />
+                placeholder="you@company.com" required />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
+              <Input id="password" type="password" value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                minLength={6}
-              />
+                placeholder="••••••••" required minLength={6} />
             </div>
             <Button type="submit" className="w-full" disabled={submitting}>
-              {submitting ? 'Please wait...' : isSignUp ? 'Create Account' : 'Sign In'}
+              {submitting ? 'Please wait...' : 'Sign In'}
             </Button>
           </form>
-          <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={() => { setIsSignUp(!isSignUp); setNotAllowed(false); }}
-              className="text-sm text-primary hover:underline"
-            >
-              {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
-            </button>
-          </div>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            This system is invite-only. If you don't yet have a password, ask an
+            administrator to send you a setup link.
+          </p>
         </CardContent>
       </Card>
     </div>
